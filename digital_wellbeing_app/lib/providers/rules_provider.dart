@@ -27,6 +27,9 @@ class RulesNotifier extends StateNotifier<RestrictionRules> {
         final rules = await _storageService.loadRules();
         if (mounted) {
           state = rules;
+          print(
+            '[RulesProvider] Loaded rules: ${rules.alwaysAllowedApps.length} apps, ${rules.restrictionStartTime} - ${rules.restrictionEndTime}',
+          );
         }
       } catch (e) {
         print('Failed to load saved rules: $e');
@@ -34,43 +37,83 @@ class RulesNotifier extends StateNotifier<RestrictionRules> {
     });
   }
 
-  Future<void> updateAllowedApps(List<String> apps) async {
-    // Check if settings are locked
-    if (state.isEnforcementEnabled &&
-        TimeService.isCurrentTimeRestricted(
-          state.restrictionStartTime,
-          state.restrictionEndTime,
-        )) {
-      throw Exception('Settings are locked during restriction period');
+  /// Reload rules from storage (useful after navigation back)
+  Future<void> reloadRules() async {
+    try {
+      final rules = await _storageService.loadRules();
+      if (mounted) {
+        state = rules;
+        print(
+          '[RulesProvider] Reloaded rules: ${rules.alwaysAllowedApps.length} apps, ${rules.restrictionStartTime} - ${rules.restrictionEndTime}',
+        );
+      }
+    } catch (e) {
+      print('[RulesProvider] Failed to reload rules: $e');
     }
+  }
 
-    final updatedRules = state.copyWith(alwaysAllowedApps: apps);
-    await _storageService.saveRules(updatedRules);
-    state = updatedRules;
+  Future<void> updateAllowedApps(List<String> apps) async {
+    try {
+      print(
+        '[RulesProvider] Updating allowed apps. Old count: ${state.alwaysAllowedApps.length}, New count: ${apps.length}',
+      );
+
+      // Check if settings are locked
+      if (state.isEnforcementEnabled &&
+          TimeService.isCurrentTimeRestricted(
+            state.restrictionStartTime,
+            state.restrictionEndTime,
+          )) {
+        throw Exception('Settings are locked during restriction period');
+      }
+
+      final updatedRules = state.copyWith(alwaysAllowedApps: apps);
+      await _storageService.saveRules(updatedRules);
+      state = updatedRules;
+
+      print(
+        '[RulesProvider] State updated. New count: ${state.alwaysAllowedApps.length}',
+      );
+      print('[RulesProvider] Apps: ${state.alwaysAllowedApps.join(", ")}');
+    } catch (e) {
+      print('[RulesProvider] Error updating allowed apps: $e');
+      // Re-throw for UI to handle
+      rethrow;
+    }
   }
 
   Future<void> updateRestrictionTimes(String startTime, String endTime) async {
-    // Check if settings are locked
-    if (state.isEnforcementEnabled &&
-        TimeService.isCurrentTimeRestricted(
-          state.restrictionStartTime,
-          state.restrictionEndTime,
-        )) {
-      throw Exception('Settings are locked during restriction period');
-    }
+    try {
+      // Check if settings are locked
+      if (state.isEnforcementEnabled &&
+          TimeService.isCurrentTimeRestricted(
+            state.restrictionStartTime,
+            state.restrictionEndTime,
+          )) {
+        throw Exception('Settings are locked during restriction period');
+      }
 
-    final updatedRules = state.copyWith(
-      restrictionStartTime: startTime,
-      restrictionEndTime: endTime,
-    );
-    await _storageService.saveRules(updatedRules);
-    state = updatedRules;
+      final updatedRules = state.copyWith(
+        restrictionStartTime: startTime,
+        restrictionEndTime: endTime,
+      );
+      await _storageService.saveRules(updatedRules);
+      state = updatedRules;
+    } catch (e) {
+      // Re-throw for UI to handle
+      rethrow;
+    }
   }
 
   Future<void> toggleEnforcement(bool enabled) async {
-    final updatedRules = state.copyWith(isEnforcementEnabled: enabled);
-    await _storageService.saveRules(updatedRules);
-    state = updatedRules;
+    try {
+      final updatedRules = state.copyWith(isEnforcementEnabled: enabled);
+      await _storageService.saveRules(updatedRules);
+      state = updatedRules;
+    } catch (e) {
+      // Re-throw for UI to handle
+      rethrow;
+    }
   }
 
   bool isSettingsLocked() {

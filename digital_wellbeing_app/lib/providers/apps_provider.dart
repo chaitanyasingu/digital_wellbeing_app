@@ -148,17 +148,24 @@ class PaginatedAppsNotifier extends StateNotifier<AppsState> {
   /// Sync with device (fetch real installed apps)
   Future<SyncResult> syncWithDevice() async {
     try {
+      print('Starting device sync...');
       final result = await _repository.syncInstalledApps();
+      print('Sync result: $result');
 
       // Refresh the list after sync
       if (result.success) {
         final newCount = await _repository.getAppCount();
+        print('Updated app count: $newCount');
         state = state.copyWith(totalCount: newCount);
         await loadApps(reset: true);
+        print('Reloaded app list after sync');
+      } else {
+        print('Sync failed: ${result.error}');
       }
 
       return result;
     } catch (e) {
+      print('Sync error: $e');
       return SyncResult(success: false, error: e.toString());
     }
   }

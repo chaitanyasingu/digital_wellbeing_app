@@ -2,35 +2,140 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/rules_provider.dart';
 import '../providers/enforcement_provider.dart';
-import '../services/time_service.dart';
+import '../providers/settings_lock_provider.dart';
+import '../services/time_service.dart' as time_utils;
 import 'app_selection_screen.dart';
 import 'time_config_screen.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Check accessibility status on app start
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(accessibilityStatusProvider.notifier).checkStatus();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload rules when returning to this screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(rulesProvider.notifier).reloadRules();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Direct state access - no async, no waiting
     final rules = ref.watch(rulesProvider);
     final accessibilityState = ref.watch(accessibilityStatusProvider);
+    final lockState = ref.watch(settingsLockProvider);
+    final canModify = ref.watch(canModifySettingsProvider);
 
-    final isLocked = ref.read(rulesProvider.notifier).isSettingsLocked();
-    final nextUnlock = TimeService.getNextUnlockTime(
-      rules.restrictionStartTime,
-      rules.restrictionEndTime,
+    print(
+      '[HomeScreen] Building with ${rules.alwaysAllowedApps.length} allowed apps',
     );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Digital Wellbeing'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          if (lockState.isLocked)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: Row(
+                  children: [
+                    Icon(Icons.lock, color: Colors.red.shade700, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      'LOCKED',
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Lock Status Banner (when settings are locked)
+            if (lockState.isLocked) ...[
+              Card(
+                color: Colors.red.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.lock_clock,
+                            color: Colors.red.shade700,
+                            size: 32,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Settings Locked',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  lockState.lockMessage,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.red.shade900,
+                                  ),
+                                ),
+                                if (lockState.unlockTime != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Unlocks at ${time_utils.TimeService.formatTimeOfDay(time_utils.TimeOfDay(hour: lockState.unlockTime!.hour, minute: lockState.unlockTime!.minute))}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.red.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Status Card
             Card(
               child: Padding(
@@ -46,71 +151,72 @@ class HomeScreen extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Enabled'),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Enabled'),
+                              if (!canModify)
+                                Text(
+                                  'Cannot change during restriction',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                         Switch(
                           value: rules.isEnforcementEnabled,
-                          onChanged: isLocked
-                              ? null
-                              : (value) async {
-                                  // Check accessibility status when toggling
-                                  ref
-                                      .read(
-                                        accessibilityStatusProvider.notifier,
-                                      )
-                                      .checkStatus();
+                          onChanged: canModify
+                              ? (value) async {
+                                  try {
+                                    // Check accessibility status when toggling
+                                    ref
+                                        .read(
+                                          accessibilityStatusProvider.notifier,
+                                        )
+                                        .checkStatus();
 
-                                  await ref
-                                      .read(rulesProvider.notifier)
-                                      .toggleEnforcement(value);
-                                  if (value) {
-                                    final service = ref.read(
-                                      enforcementServiceProvider,
-                                    );
-                                    await service.startEnforcement(
-                                      rules.alwaysAllowedApps,
-                                      rules.restrictionStartTime,
-                                      rules.restrictionEndTime,
-                                    );
-                                  } else {
-                                    final service = ref.read(
-                                      enforcementServiceProvider,
-                                    );
-                                    await service.stopEnforcement();
+                                    await ref
+                                        .read(rulesProvider.notifier)
+                                        .toggleEnforcement(value);
+                                    if (value) {
+                                      final service = ref.read(
+                                        enforcementServiceProvider,
+                                      );
+                                      await service.startEnforcement(
+                                        rules.alwaysAllowedApps,
+                                        rules.restrictionStartTime,
+                                        rules.restrictionEndTime,
+                                      );
+                                    } else {
+                                      final service = ref.read(
+                                        enforcementServiceProvider,
+                                      );
+                                      await service.stopEnforcement();
+                                    }
+                                  } catch (e) {
+                                    // Show error but don't crash
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Error: ${e.toString()}',
+                                          ),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
                                   }
-                                },
+                                }
+                              : null,
                         ),
                       ],
                     ),
-                    if (isLocked) ...[
-                      const Divider(),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.lock,
-                              color: Colors.orange,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Locked until $nextUnlock',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -120,12 +226,12 @@ class HomeScreen extends ConsumerWidget {
             // Accessibility Service Status
             if (!accessibilityState.isEnabled && rules.isEnforcementEnabled)
               Card(
-                color: Colors.red.shade50,
+                color: Colors.orange.shade50,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      const Icon(Icons.warning, color: Colors.red, size: 48),
+                      const Icon(Icons.warning, color: Colors.orange, size: 48),
                       const SizedBox(height: 8),
                       const Text(
                         'Accessibility Required',
@@ -168,21 +274,41 @@ class HomeScreen extends ConsumerWidget {
                       'Configuration',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
+                    if (!canModify)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '🔒 Settings locked during restriction window',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 16),
                     ListTile(
-                      leading: const Icon(Icons.apps),
-                      title: const Text(
+                      leading: Icon(
+                        Icons.apps,
+                        color: canModify ? null : Colors.grey,
+                      ),
+                      title: Text(
                         'Allowed Apps',
-                        style: TextStyle(fontSize: 14),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: canModify ? null : Colors.grey,
+                        ),
                       ),
                       subtitle: Text(
                         '${rules.alwaysAllowedApps.length} apps',
                         style: const TextStyle(fontSize: 12),
                       ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: isLocked
-                          ? null
-                          : () {
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: canModify ? null : Colors.grey,
+                      ),
+                      onTap: canModify
+                          ? () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -190,23 +316,32 @@ class HomeScreen extends ConsumerWidget {
                                       const AppSelectionScreen(),
                                 ),
                               );
-                            },
+                            }
+                          : null,
                     ),
                     const Divider(),
                     ListTile(
-                      leading: const Icon(Icons.schedule),
-                      title: const Text(
-                        'Times',
-                        style: TextStyle(fontSize: 14),
+                      leading: Icon(
+                        Icons.schedule,
+                        color: canModify ? null : Colors.grey,
+                      ),
+                      title: Text(
+                        'Restriction Times',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: canModify ? null : Colors.grey,
+                        ),
                       ),
                       subtitle: Text(
                         '${rules.restrictionStartTime} - ${rules.restrictionEndTime}',
                         style: const TextStyle(fontSize: 12),
                       ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: isLocked
-                          ? null
-                          : () {
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: canModify ? null : Colors.grey,
+                      ),
+                      onTap: canModify
+                          ? () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -214,7 +349,8 @@ class HomeScreen extends ConsumerWidget {
                                       const TimeConfigScreen(),
                                 ),
                               );
-                            },
+                            }
+                          : null,
                     ),
                   ],
                 ),

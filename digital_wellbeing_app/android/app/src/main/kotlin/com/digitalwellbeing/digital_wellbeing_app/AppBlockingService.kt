@@ -11,14 +11,41 @@ class AppBlockingService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AppBlockingService"
+        
+        // System packages that should NEVER be blocked
+        private val SYSTEM_WHITELIST = setOf(
+            // Launchers
+            "com.google.android.apps.nexuslauncher",  // Pixel Launcher
+            "com.android.launcher3",                  // AOSP Launcher
+            "com.android.launcher",                   // Generic launcher
+            "com.sec.android.app.launcher",           // Samsung
+            "com.miui.home",                          // Xiaomi
+            "com.huawei.android.launcher",            // Huawei
+            "com.oppo.launcher",                      // Oppo
+            "com.oneplus.launcher",                   // OnePlus
+            // System UI
+            "com.android.systemui",
+            "com.android.systemui.accessibility.accessibilitymenu",
+            // Settings
+            "com.android.settings",
+            // Phone/Dialer (emergency calls)
+            "com.google.android.dialer",
+            "com.android.dialer",
+            "com.android.contacts",
+            // Our own app and blocking activity
+            "com.digitalwellbeing.digital_wellbeing_app"
+        )
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: return
             
-            // Ignore our own app
-            if (packageName == applicationContext.packageName) {
+            Log.d(TAG, "=== Window change detected: $packageName ===")
+            
+            // NEVER block system/launcher packages
+            if (SYSTEM_WHITELIST.contains(packageName)) {
+                Log.d(TAG, "System/Launcher app - ALWAYS ALLOWED")
                 return
             }
 
@@ -26,7 +53,10 @@ class AppBlockingService : AccessibilityService() {
             val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
             val enforcementEnabled = prefs.getBoolean("enforcement_enabled", false)
             
+            Log.d(TAG, "Enforcement enabled: $enforcementEnabled")
+            
             if (!enforcementEnabled) {
+                Log.d(TAG, "Enforcement disabled, ignoring $packageName")
                 return
             }
 
@@ -34,32 +64,40 @@ class AppBlockingService : AccessibilityService() {
             val startTime = prefs.getString("start_time", "21:00") ?: "21:00"
             val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
             
-            if (!isCurrentTimeRestricted(startTime, endTime)) {
+            val isRestricted = isCurrentTimeRestricted(startTime, endTime)
+            Log.d(TAG, "Restriction window: $startTime-$endTime, Currently restricted: $isRestricted")
+            
+            if (!isRestricted) {
+                Log.d(TAG, "Not in restriction window, allowing $packageName")
                 return
             }
 
             // Check if app is in allowed list
             val allowedApps = prefs.getStringSet("allowed_apps", emptySet()) ?: emptySet()
+            Log.d(TAG, "Allowed apps count: ${allowedApps.size}")
+            Log.d(TAG, "Allowed apps list: ${allowedApps.joinToString(", ")}")
+            Log.d(TAG, "Checking if '$packageName' is in allowed list...")
             
-            if (packageName !in allowedApps) {
-                Log.d(TAG, "Blocking app: $packageName")
+            if (allowedApps.contains(packageName)) {
+                Log.d(TAG, "✓ App $packageName IS in allowed list, ALLOWING")
+                return
+            } else {
+                Log.d(TAG, "✗ App $packageName NOT in allowed list, BLOCKING")
                 blockApp(packageName)
             }
         }
     }
 
     private fun blockApp(packageName: String) {
+        Log.d(TAG, "Showing blocking dialog for $packageName")
+        
         // Launch blocking overlay
         val intent = Intent(this, BlockingActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
             putExtra("blocked_package", packageName)
         }
         startActivity(intent)
-
-        // Return to home
-        performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
     private fun isCurrentTimeRestricted(startTime: String, endTime: String): Boolean {
@@ -76,13 +114,22 @@ class AppBlockingService : AccessibilityService() {
             val endCal = Calendar.getInstance().apply { time = end!! }
             val endMinutes = endCal.get(Calendar.HOUR_OF_DAY) * 60 + endCal.get(Calendar.MINUTE)
             
+            val currentTime = "${now.get(Calendar.HOUR_OF_DAY).toString().padStart(2, '0')}:${now.get(Calendar.MINUTE).toString().padStart(2, '0')}"
+            
+            Log.d(TAG, "Time check: Current=$currentTime ($currentMinutes min), Start=$startTime ($startMinutes min), End=$endTime ($endMinutes min)")
+            
+            val isRestricted: Boolean
             // If start < end (e.g., 09:00 to 17:00)
             if (startMinutes < endMinutes) {
-                return currentMinutes in startMinutes until endMinutes
+                isRestricted = currentMinutes in startMinutes until endMinutes
+                Log.d(TAG, "Same-day restriction: $currentMinutes in [$startMinutes, $endMinutes) = $isRestricted")
+            } else {
+                // If start > end (crosses midnight, e.g., 21:00 to 10:00)
+                isRestricted = currentMinutes >= startMinutes || currentMinutes < endMinutes
+                Log.d(TAG, "Overnight restriction: ($currentMinutes >= $startMinutes OR $currentMinutes < $endMinutes) = $isRestricted")
             }
             
-            // If start > end (crosses midnight, e.g., 21:00 to 10:00)
-            return currentMinutes >= startMinutes || currentMinutes < endMinutes
+            return isRestricted
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing time", e)
             return false

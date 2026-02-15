@@ -8,6 +8,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.Manifest
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -16,8 +19,11 @@ import java.util.concurrent.Executors
 class MainActivity : FlutterActivity() {
     private val APP_CHANNEL = "digital_wellbeing/apps"
     private val ENFORCEMENT_CHANNEL = "digital_wellbeing/enforcement"
+    private val NOTIFICATION_CHANNEL = "digital_wellbeing/notifications"
+    private val NOTIFICATION_PERMISSION_REQUEST = 1001
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var notificationPermissionResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -56,6 +62,11 @@ class MainActivity : FlutterActivity() {
                     val startTime = call.argument<String>("startTime") ?: "21:00"
                     val endTime = call.argument<String>("endTime") ?: "10:00"
                     
+                    android.util.Log.d("MainActivity", "=== Starting enforcement ===")
+                    android.util.Log.d("MainActivity", "Allowed apps count: ${allowedApps.size}")
+                    android.util.Log.d("MainActivity", "Restriction window: $startTime - $endTime")
+                    android.util.Log.d("MainActivity", "Allowed apps list: ${allowedApps.joinToString(", ")}")
+                    
                     // Save to shared preferences
                     val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
                     prefs.edit().apply {
@@ -66,6 +77,16 @@ class MainActivity : FlutterActivity() {
                         putLong("last_known_time", System.currentTimeMillis())
                         apply()
                     }
+                    
+                    // Verify what was saved
+                    val savedApps = prefs.getStringSet("allowed_apps", emptySet())
+                    val savedStart = prefs.getString("start_time", "")
+                    val savedEnd = prefs.getString("end_time", "")
+                    android.util.Log.d("MainActivity", "Verified saved - Apps: ${savedApps?.size}, Start: $savedStart, End: $savedEnd")
+                    android.util.Log.d("MainActivity", "Verified saved apps list: ${savedApps?.joinToString(", ")}")
+                    
+                    // Schedule restriction notifications
+                    RestrictionNotificationReceiver.scheduleRestrictionAlerts(this, startTime, endTime)
                     
                     // Start foreground service
                     val serviceIntent = Intent(this, EnforcementForegroundService::class.java)
@@ -78,8 +99,13 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "stopEnforcement" -> {
+                    android.util.Log.d("MainActivity", "Stopping enforcement")
+                    
                     val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
                     prefs.edit().putBoolean("enforcement_enabled", false).apply()
+                    
+                    // Cancel restriction notifications
+                    RestrictionNotificationReceiver.cancelRestrictionAlerts(this)
                     
                     // Stop foreground service
                     val serviceIntent = Intent(this, EnforcementForegroundService::class.java)
@@ -98,6 +124,61 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+        
+        // Notification channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "requestNotificationPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+                            == PackageManager.PERMISSION_GRANTED) {
+                            result.success(true)
+                        } else {
+                            notificationPermissionResult = result
+                            ActivityCompat.requestPermissions(
+                                this,
+                                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                NOTIFICATION_PERMISSION_REQUEST
+                            )
+                        }
+                    } else {
+                        result.success(true) // Pre-Android 13, no permission needed
+                    }
+                }
+                "hasNotificationPermission" -> {
+                    val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        val permissionStatus = ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        )
+                        permissionStatus == PackageManager.PERMISSION_GRANTED
+                    } else {
+                        true
+                    }
+                    result.success(hasPermission)
+                }
+                "showTestNotification" -> {
+                    RestrictionNotificationReceiver().showRestrictionStartNotification(this)
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+    
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
+            val granted = grantResults.isNotEmpty() && 
+                         grantResults[0] == PackageManager.PERMISSION_GRANTED
+            notificationPermissionResult?.success(granted)
+            notificationPermissionResult = null
         }
     }
 
