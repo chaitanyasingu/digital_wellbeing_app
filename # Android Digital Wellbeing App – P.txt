@@ -1,0 +1,278 @@
+# Android Digital Wellbeing App – Production-Grade Implementation Plan
+
+## Overview
+
+This project is an **Android-only digital wellbeing application** designed to reduce screen time by enforcing strict, time-based app access rules.
+
+The system blocks all applications except explicitly allowed ones, enforces locked time windows, and prevents configuration changes during restriction periods. The app is designed to be **hard to bypass**, persistent across reboots, and safe for real-world daily use.
+
+This README is written to be **explicit, deterministic, and non-ambiguous**, so that tools like **GitHub Copilot** or AI agents can generate correct implementations without hallucination.
+
+---
+
+## Core Principles (Non-Negotiable)
+
+1. **Android-only** (no iOS considerations)
+2. **Local-first enforcement** (backend is optional and secondary)
+3. **Accessibility-based app blocking** (not Device Owner)
+4. **Time-based hard locks** with settings freeze
+5. **No permanent lock-out scenarios**
+6. **User consent + transparency** for all permissions
+
+---
+
+## Functional Requirements (Authoritative)
+
+### 1. Always Allowed Apps (24-Hour Access)
+
+* User selects a list of apps that are accessible at all times.
+* These apps are **never blocked**, regardless of time window.
+* Typical examples:
+
+  * Phone
+  * Payment apps
+  * Messaging apps
+
+This list is called: `ALWAYS_ALLOWED_APPS`.
+
+---
+
+### 2. Restricted Time Window
+
+* User defines exactly **one daily restricted window**:
+
+  * `startTime` (e.g., 21:00)
+  * `endTime` (e.g., 10:00)
+
+During this window:
+
+* Only apps in `ALWAYS_ALLOWED_APPS` are usable
+* All other apps are blocked immediately when opened
+
+If the window spans midnight, it must be treated as a **continuous lock period**.
+
+---
+
+### 3. Settings Lock Rule
+
+* During the restricted window:
+
+  * User **cannot modify**:
+
+    * Allowed apps list
+    * Start time / end time
+    * Disable enforcement
+
+* Settings UI must be:
+
+  * Visible
+  * Read-only
+  * Clearly show next unlock time
+
+---
+
+### 4. Enforcement Rules
+
+Restrictions MUST persist across:
+
+* App restarts
+* Device reboots
+* App force-stop attempts
+
+User bypass attempts to handle:
+
+* System time changes
+* Task killer apps
+
+Explicitly **out of scope**:
+
+* Rooted devices
+* Factory reset protection
+
+---
+
+## Technical Architecture
+
+### Frontend
+
+* **Flutter**
+* State management: Riverpod or Bloc
+* Platform channels for Android-native enforcement
+
+### Android Native Layer
+
+* Accessibility Service (mandatory)
+* Foreground Service
+* Boot Receiver
+* AlarmManager / WorkManager
+
+### Storage
+
+* Local encrypted storage (SharedPreferences or Room)
+* Backend sync is optional (Phase 3+)
+
+---
+
+## Phase-wise Implementation Plan
+
+---
+
+## Phase 1 – Core MVP (Critical Path)
+
+### Goal
+
+Deliver a working Android app that reliably blocks apps based on time rules.
+
+### Features
+
+* Flutter UI shell
+* App list fetch using PackageManager
+* Select `ALWAYS_ALLOWED_APPS`
+* Configure restricted start and end time
+* Local persistence of rules
+* Accessibility Service-based app blocking
+
+### Android Details
+
+* Monitor `TYPE_WINDOW_STATE_CHANGED`
+* Detect foreground app package name
+* If app is NOT allowed:
+
+  * Immediately launch blocking overlay
+  * Redirect to home screen
+
+### Output
+
+* Core functionality works on real devices
+* Manual testing validates blocking logic
+
+---
+
+## Phase 2 – Enforcement Hardening
+
+### Goal
+
+Make bypassing difficult for normal users.
+
+### Features
+
+* Foreground service for continuous enforcement
+* BootReceiver to restart enforcement after reboot
+* Detect system time changes
+* Periodic rule verification
+
+### Android Details
+
+* Compare system time with last-known trusted timestamp
+* Restart services if killed
+* Use AlarmManager for time boundary enforcement
+
+### Output
+
+* App survives reboots and force-stops
+* Time-based rules remain consistent
+
+---
+
+## Phase 3 – Settings Lock & UX Polish
+
+### Goal
+
+Prevent rule changes during lock window and improve usability.
+
+### Features
+
+* Read-only settings mode during restriction
+* Countdown timer to next unlock
+* Clear visual indicators of lock state
+* Safe fallback messaging
+
+### UI Rules
+
+* No hidden controls
+* No confusing error states
+* Explicit "Restrictions active until HH:MM" text
+
+### Output
+
+* App feels trustworthy and predictable
+
+---
+
+## Phase 4 – Anti-Tamper Enhancements
+
+### Goal
+
+Detect and discourage intentional bypass attempts.
+
+### Features
+
+* Detect Accessibility Service disable events
+* Notify user and re-prompt permission flow
+* Detect excessive force-close attempts
+
+### Limitations
+
+* Do NOT attempt aggressive or deceptive behavior
+* Always allow user recovery
+
+---
+
+## Phase 5 – Optional Backend (Future)
+
+### Goal
+
+Cloud sync and recovery.
+
+### Features
+
+* Node.js backend
+* User authentication
+* Sync rule configuration
+* Optional remote unlock
+
+### Note
+
+Backend must NEVER be required for enforcement.
+
+---
+
+## Explicit Non-Goals
+
+* iOS support
+* Parental control certification
+* Enterprise MDM features
+* Root-level enforcement
+
+---
+
+## Permissions Required (Android)
+
+* Usage Access
+* Accessibility Service
+* Foreground Service
+* Receive Boot Completed
+
+All permissions must be:
+
+* Clearly explained
+* Explicitly user-approved
+
+---
+
+## Success Criteria
+
+The app is considered successful if:
+
+* Restricted apps cannot be opened during lock window
+* Allowed apps always remain accessible
+* Settings cannot be changed during restriction
+* App recovers automatically after reboot
+
+---
+
+## Final Note
+
+This project is **technically feasible**, **ethically sound**, and **production-grade** when implemented as described above.
+
+Any deviation from these rules must be treated as a design change, not an implementation detail.
