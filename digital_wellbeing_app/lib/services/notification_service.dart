@@ -42,6 +42,21 @@ class NotificationService {
     }
   }
 
+  /// Show tamper warning notification (accessibility disabled, force-closes)
+  Future<void> showTamperWarning({
+    required String title,
+    required String message,
+  }) async {
+    try {
+      await _channel.invokeMethod('showTamperWarning', {
+        'title': title,
+        'message': message,
+      });
+    } on PlatformException catch (e) {
+      debugPrint('Failed to show tamper warning: ${e.message}');
+    }
+  }
+
   /// Get logs from accessibility service for debugging
   Future<List<String>> getAccessibilityLogs() async {
     try {

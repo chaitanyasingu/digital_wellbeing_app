@@ -162,6 +162,12 @@ class MainActivity : FlutterActivity() {
                     RestrictionNotificationReceiver().showRestrictionStartNotification(this)
                     result.success(null)
                 }
+                "showTamperWarning" -> {
+                    val title = call.argument<String>("title") ?: "Warning"
+                    val message = call.argument<String>("message") ?: "Tamper detected"
+                    TamperWarningNotification.show(this, title, message)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/rules_provider.dart';
 import '../providers/enforcement_provider.dart';
 import '../providers/settings_lock_provider.dart';
+import '../providers/tamper_detection_provider.dart';
 import '../services/time_service.dart' as time_utils;
 import 'app_selection_screen.dart';
 import 'time_config_screen.dart';
@@ -40,6 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final accessibilityState = ref.watch(accessibilityStatusProvider);
     final lockState = ref.watch(settingsLockProvider);
     final canModify = ref.watch(canModifySettingsProvider);
+    final tamperState = ref.watch(tamperDetectionProvider);
 
     print(
       '[HomeScreen] Building with ${rules.alwaysAllowedApps.length} allowed apps',
@@ -47,8 +49,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Digital Wellbeing'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.self_improvement, size: 24),
+            const SizedBox(width: 8),
+            const Text('Digital Mindfulness'),
+          ],
+        ),
         actions: [
           if (lockState.isLocked)
             Padding(
@@ -133,6 +141,145 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+            ],
+
+            // Tamper Detection Warnings
+            if (tamperState.showWarning) ...[
+              // Force-close warning
+              if (tamperState.hasRecentForceCloses)
+                Card(
+                  color: Colors.deepOrange.shade50,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.deepOrange.shade700,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Bypass Attempt Detected',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.deepOrange.shade700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Detected ${tamperState.forceCloseCount} force-close attempts. '
+                                    'Repeatedly closing this app won\'t disable restrictions.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.deepOrange.shade900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                ref
+                                    .read(tamperDetectionProvider.notifier)
+                                    .dismissWarning();
+                              },
+                              child: const Text('Dismiss'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              // Accessibility disabled warning (more serious)
+              if (tamperState.isAccessibilityDisabled)
+                Card(
+                  color: Colors.red.shade50,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.security,
+                              color: Colors.red.shade700,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Service Disabled',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.red.shade700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Accessibility service was turned off. '
+                                    'Restrictions cannot be enforced until re-enabled.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.red.shade900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                ref
+                                    .read(tamperDetectionProvider.notifier)
+                                    .dismissWarning();
+                              },
+                              child: const Text('Dismiss'),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                ref
+                                    .read(enforcementServiceProvider)
+                                    .openAccessibilitySettings();
+                              },
+                              icon: const Icon(Icons.settings, size: 18),
+                              label: const Text('Re-enable'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade700,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
             ],
 

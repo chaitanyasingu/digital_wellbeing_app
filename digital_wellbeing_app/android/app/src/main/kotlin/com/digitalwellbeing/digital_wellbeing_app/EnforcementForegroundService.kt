@@ -8,7 +8,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
@@ -17,14 +19,21 @@ class EnforcementForegroundService : Service() {
     companion object {
         private const val TAG = "EnforcementService"
         private const val NOTIFICATION_ID = 1001
-        private const val CHANNEL_ID = "enforcement_channel"
-        private const val CHANNEL_NAME = "Enforcement Active"
+        private const val CHANNEL_ID_MONITORING = "enforcement_monitoring"
+        private const val CHANNEL_ID_RESTRICTION = "enforcement_restriction"
+        private const val CHANNEL_NAME_MONITORING = "Monitoring"
+        private const val CHANNEL_NAME_RESTRICTION = "Active Restriction"
+        private const val UPDATE_INTERVAL_MS = 60000L // Update every minute
     }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var updateRunnable: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Foreground service created")
-        createNotificationChannel()
+        createNotificationChannels()
+        startNotificationUpdates()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -54,22 +63,57 @@ class EnforcementForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopNotificationUpdates()
         Log.d(TAG, "Foreground service destroyed")
     }
 
-    private fun createNotificationChannel() {
+    private fun startNotificationUpdates() {
+        updateRunnable = object : Runnable {
+            override fun run() {
+                updateNotification()
+                handler.postDelayed(this, UPDATE_INTERVAL_MS)
+            }
+        }
+        handler.post(updateRunnable!!)
+    }
+
+    private fun stopNotificationUpdates() {
+        updateRunnable?.let { handler.removeCallbacks(it) }
+    }
+
+    private fun updateNotification() {
+        val notification = createNotification()
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
+            // Low priority channel for monitoring
+            val monitoringChannel = NotificationChannel(
+                CHANNEL_ID_MONITORING,
+                CHANNEL_NAME_MONITORING,
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Shows when app blocking is active"
+                description = "Shows when monitoring is active"
+                setShowBadge(false)
+            }
+
+            // High priority channel for active restrictions
+            val restrictionChannel = NotificationChannel(
+                CHANNEL_ID_RESTRICTION,
+                CHANNEL_NAME_RESTRICTION,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Shows when restrictions are actively enforced"
+                setShowBadge(true)
+                enableVibration(false)
             }
 
             val notificationManager =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(monitoringChannel)
+            notificationManager.createNotificationChannel(restrictionChannel)
         }
     }
 
@@ -88,21 +132,32 @@ class EnforcementForegroundService : Service() {
         val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
         val isInRestriction = isCurrentTimeRestricted(startTime, endTime)
 
+        // Use different channel based on restriction status
+        val channelId = if (isInRestriction) CHANNEL_ID_RESTRICTION else CHANNEL_ID_MONITORING
+        val priority = if (isInRestriction) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_LOW
+
         val title = if (isInRestriction) {
-            "🔒 Restrictions Active"
+            "🧘 Mindful Time Active"
         } else {
-            "Digital Wellbeing Monitoring"
+            "Digital Mindfulness Active"
         }
 
         val text = if (isInRestriction) {
-            "Apps restricted until $endTime"
+            "Taking a break from apps until $endTime"
         } else {
-            "Enforcement enabled • $startTime - $endTime"
+            "Monitoring • Restrictions: $startTime - $endTime"
         }
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val bigText = if (isInRestriction) {
+            "You're in a mindful period. Only essential apps are available until $endTime. Stay focused! 🌟"
+        } else {
+            "Digital Mindfulness is monitoring your apps. Restrictions will activate during $startTime - $endTime."
+        }
+
+        return NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setSmallIcon(
                 if (isInRestriction) 
                     android.R.drawable.ic_lock_idle_lock 
@@ -110,8 +165,9 @@ class EnforcementForegroundService : Service() {
                     android.R.drawable.ic_dialog_info
             )
             .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(isInRestriction) // Can't dismiss during restriction
+            .setPriority(priority)
+            .setColor(if (isInRestriction) 0xFF6B4FA0.toInt() else 0xFF8B75B8.toInt())
             .build()
     }
 

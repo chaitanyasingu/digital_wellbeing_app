@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Digital Wellbeing</string>
+    <string name="app_name">Digital Mindfulness</string>
     <string name="accessibility_service_description">Monitors apps to enforce time-based blocking for non-allowed apps.</string>
 </resources>

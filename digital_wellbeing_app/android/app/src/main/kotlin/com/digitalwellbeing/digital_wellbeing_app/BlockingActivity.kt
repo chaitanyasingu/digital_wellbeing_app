@@ -37,18 +37,19 @@ class BlockingActivity : Activity() {
 
         // Icon
         val iconText = TextView(this).apply {
-            text = "🔒"
+            text = "🧘"
             textSize = 64f
             gravity = android.view.Gravity.CENTER
             setPadding(0, 0, 0, 24)
         }
 
         val titleText = TextView(this).apply {
-            text = "App Restricted"
+            text = "Mindful Moment"
             textSize = 28f
-            setTextColor(0xFF333333.toInt())
+            setTextColor(0xFF6B4FA0.toInt())
             gravity = android.view.Gravity.CENTER
             setPadding(0, 0, 0, 16)
+            setTypeface(null, android.graphics.Typeface.BOLD)
         }
 
         val appNameText = TextView(this).apply {
@@ -60,17 +61,20 @@ class BlockingActivity : Activity() {
         }
 
         val messageText = TextView(this).apply {
-            text = "This app is currently restricted.\nIt will be available at $endTime"
+            text = "Taking a break from this app.\nAvailable again at $endTime\n\nUse this time for something meaningful 🌟"
             textSize = 16f
             setTextColor(0xFF888888.toInt())
             gravity = android.view.Gravity.CENTER
             setPadding(0, 0, 0, 48)
+            lineHeight = (20 * resources.displayMetrics.scaledDensity).toInt()
         }
 
         val backButton = Button(this).apply {
             text = "GO BACK"
             textSize = 16f
             setPadding(48, 24, 48, 24)
+            setBackgroundColor(0xFF6B4FA0.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
             setOnClickListener {
                 goHome()
             }

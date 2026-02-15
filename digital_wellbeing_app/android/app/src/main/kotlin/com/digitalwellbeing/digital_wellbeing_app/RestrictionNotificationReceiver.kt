@@ -152,8 +152,8 @@ class RestrictionNotificationReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("🔒 Digital Wellbeing Active")
-            .setContentText("Restriction period started until $endTime")
+            .setContentTitle("🧘 Mindful Time Begins")
+            .setContentText("Taking a break from apps until $endTime")
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -161,7 +161,7 @@ class RestrictionNotificationReceiver : BroadcastReceiver() {
             .setVibrate(longArrayOf(0, 500, 200, 500))
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("Apps are now restricted until $endTime. Only allowed apps can be opened.")
+                    .bigText("Time for mindfulness! Apps are now restricted until $endTime. Only essential apps are available. 🌟")
             )
             .build()
 
@@ -191,12 +191,16 @@ class RestrictionNotificationReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("✅ Restriction Period Ended")
-            .setContentText("You can now access all apps")
+            .setContentTitle("🌅 Mindful Period Complete")
+            .setContentText("You can now access all apps freely")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("Great job maintaining focus! All apps are now available. See you next mindful period. 💚")
+            )
             .build()
 
         val notificationManager =
