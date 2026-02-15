@@ -3,8 +3,6 @@ package com.digitalwellbeing.digital_wellbeing_app
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.widget.Button
 import android.widget.TextView
 import android.content.pm.PackageManager
@@ -85,13 +83,6 @@ class BlockingActivity : Activity() {
         layout.addView(backButton)
 
         setContentView(layout)
-        
-        // Auto-dismiss and go home after showing message briefly
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (!isFinishing) {
-                goHome()
-            }
-        }, 2000) // Show for 2 seconds
     }
 
     private fun goHome() {
