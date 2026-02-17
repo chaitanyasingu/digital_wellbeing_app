@@ -1,6 +1,8 @@
-# Digital Wellbeing App
+# Digital Mindfulness
 
 **Android-only** digital wellbeing application that reduces screen time by enforcing strict, time-based app access rules.
+
+> 🧘 Helping you build healthier phone habits through mindful restrictions.
 
 ## 🎯 Project Status
 
@@ -8,28 +10,36 @@
 |-------|--------|-------------|
 | **Phase 1** | ✅ **COMPLETE** | Core MVP - App blocking, time config, local storage |
 | **Phase 2** | ✅ **COMPLETE** | Enforcement hardening - Reboot persistence, foreground service |
-| **Phase 3** | ⏳ Pending | Settings lock UX & polish |
-| **Phase 4** | ⏳ Pending | Anti-tamper enhancements |
-| **Phase 5** | ⏳ Pending | Optional backend sync |
+| **Phase 3** | ✅ **COMPLETE** | Settings lock UX & polish |
+| **Phase 4** | ✅ **COMPLETE** | Anti-tamper + UX redesign to "Digital Mindfulness" |
+| **Version 2.0** | 📋 **PLANNED** | Premium features - Multiple time windows, cloud sync ([Roadmap](VERSION_2_ROADMAP.md)) |
 
-## 🚀 Quick Start
+**Current Version:** v1.0.0 - Ready for testing and Play Store submission! 🚀
+
+## 🚀 Getting Started
+
+### For Developers (Testing)
+
+**Quick Deploy to Your Phone:**
+```powershell
+# Windows PowerShell helper script
+.\deploy-to-phone.ps1
+
+# Or manually:
+flutter pub get
+flutter run
+```
+
+See **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** for complete instructions.
+
+### For End Users
+
+Install from Google Play Store: **Coming Soon!** 🎉
 
 ### Prerequisites
 - Flutter SDK 3.10+
 - Android SDK with API 21+ (Android 5.0+)
 - Android device or emulator
-
-### Run the App
-```bash
-# Install dependencies
-flutter pub get
-
-# Generate JSON serialization
-flutter pub run build_runner build --delete-conflicting-outputs
-
-# Run on connected device
-flutter run
-```
 
 ## 📋 Core Features (Phase 1 & 2)
 
@@ -138,19 +148,76 @@ android/.../kotlin/
 - ❌ Does not work on rooted devices
 - ❌ User can uninstall app (no Device Owner mode)
 
-### Future Phases
-- Settings can be changed outside restriction window (Phase 3)
-- No tamper detection warnings (Phase 4)
-- No cloud backup (Phase 5)
+### Free Version (v1.x)
+- Only one time window per day (upgrade to Premium v2.x for multiple windows)
+- No cloud backup (coming in v2.x Premium)
+
+## 📚 Documentation
+
+### Development Phases
+- **[PHASE_1_README.md](PHASE_1_README.md)** - Core MVP implementation details
+- **[PHASE_2_README.md](PHASE_2_README.md)** - Enforcement hardening deep dive
+- **[PHASE_4_README.md](PHASE_4_README.md)** - Anti-tamper + UX redesign + Testing guide
+
+### Deployment & Publishing
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - 📱 Test on your phone + Publish to Play Store
+- **[PLAY_STORE_CHECKLIST.md](PLAY_STORE_CHECKLIST.md)** - 📋 Quick reference for store listing
+- **[deploy-to-phone.ps1](deploy-to-phone.ps1)** - 🚀 PowerShell script for quick deployment
+- **[test-on-phone.ps1](test-on-phone.ps1)** - ✅ Interactive testing checklist
+
+### Future Planning
+- **[VERSION_2_ROADMAP.md](VERSION_2_ROADMAP.md)** - 💎 Premium features (multiple windows, cloud sync, monetization)
+
+## 🚀 Deployment Quick Links
+
+**Test on Your Phone:**
+```powershell
+.\deploy-to-phone.ps1
+# Or follow: DEPLOYMENT_GUIDE.md Part 1
+```
+
+**Publish to Play Store:**
+```powershell
+# 1. Create signing key (one-time)
+cd android
+keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+
+# 2. Build release
+cd ..
+flutter build appbundle --release
+
+# 3. Follow: DEPLOYMENT_GUIDE.md Part 2
+```
 
 ## 📞 Support & Issues
 
-This is a production-grade implementation following the specification in the project root. All features match the requirements document.
+**For Bugs or Feature Requests:**
+- Open an issue on GitHub
+- Email: [Your email]
 
-For issues, check:
-1. Accessibility service is enabled
-2. All permissions granted
-3. Device is not rooted
+**Common Issues:**
+1. **Blocking not working?** → Enable accessibility service
+2. **Notifications missing?** → Grant notification permission (Android 13+)
+3. **Restrictions not persisting?** → Check battery optimization is disabled
+
+**Troubleshooting:** See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) troubleshooting section.
+
+## 🎉 Ready to Launch?
+
+**Checklist:**
+- ✅ Phases 1-4 complete
+- ✅ App rebranded to "Digital Mindfulness"
+- ✅ Purple theme and mindful UX
+- ✅ Comprehensive test suite in PHASE_4_README
+- ✅ Deployment guide ready
+- ✅ Play Store checklist prepared
+
+**Next Steps:**
+1. Test on your physical phone using [deploy-to-phone.ps1](deploy-to-phone.ps1)
+2. Run through [test-on-phone.ps1](test-on-phone.ps1) checklist
+3. Follow [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) to publish
+
+**Start your mindfulness journey today! 🧘**
 4. Android version is 5.0+
 
 ## 📄 License

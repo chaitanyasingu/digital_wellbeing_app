@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:developer' as developer;
-import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/background_job_service.dart';
 import 'services/tamper_detection_service.dart';
 import 'providers/tamper_detection_provider.dart';
@@ -107,7 +107,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
           centerTitle: true,
         ),
       ),
-      home: const HomeScreen(),
+      home: const SplashScreen(),
     );
   }
 }
