@@ -85,65 +85,74 @@ class _AppSelectionScreenState extends ConsumerState<AppSelectionScreen> {
             icon: const Icon(Icons.sync),
             tooltip: 'Sync with device',
           ),
-          TextButton(
-            onPressed: !canModify
-                ? null
-                : () async {
-                    try {
-                      final newAppsList = selectedApps.toList();
-                      print(
-                        '[AppSelectionScreen] Saving ${newAppsList.length} apps',
-                      );
-
-                      // Update allowed apps in database
-                      await ref
-                          .read(rulesProvider.notifier)
-                          .updateAllowedApps(newAppsList);
-
-                      // Read updated rules after save
-                      final updatedRules = ref.read(rulesProvider);
-                      print(
-                        '[AppSelectionScreen] After update, rules has ${updatedRules.alwaysAllowedApps.length} apps',
-                      );
-
-                      // If enforcement is currently enabled, restart it with new apps
-                      if (updatedRules.isEnforcementEnabled) {
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: ElevatedButton(
+              onPressed: !canModify
+                  ? null
+                  : () async {
+                      try {
+                        final newAppsList = selectedApps.toList();
                         print(
-                          '[AppSelectionScreen] Restarting enforcement with updated apps',
+                          '[AppSelectionScreen] Saving ${newAppsList.length} apps',
                         );
-                        final service = ref.read(enforcementServiceProvider);
-                        await service.stopEnforcement();
-                        await service.startEnforcement(
-                          newAppsList,
-                          updatedRules.restrictionStartTime,
-                          updatedRules.restrictionEndTime,
-                        );
-                      }
 
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Apps updated successfully'),
-                          ),
+                        // Update allowed apps in database
+                        await ref
+                            .read(rulesProvider.notifier)
+                            .updateAllowedApps(newAppsList);
+
+                        // Read updated rules after save
+                        final updatedRules = ref.read(rulesProvider);
+                        print(
+                          '[AppSelectionScreen] After update, rules has ${updatedRules.alwaysAllowedApps.length} apps',
                         );
-                        Navigator.pop(context);
+
+                        // If enforcement is currently enabled, restart it with new apps
+                        if (updatedRules.isEnforcementEnabled) {
+                          print(
+                            '[AppSelectionScreen] Restarting enforcement with updated apps',
+                          );
+                          final service = ref.read(enforcementServiceProvider);
+                          await service.stopEnforcement();
+                          await service.startEnforcement(
+                            newAppsList,
+                            updatedRules.restrictionStartTime,
+                            updatedRules.restrictionEndTime,
+                          );
+                        }
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Apps updated successfully'),
+                            ),
+                          );
+                          Navigator.pop(context);
+                        }
+                      } catch (e) {
+                        print('[AppSelectionScreen] Error saving apps: $e');
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
                       }
-                    } catch (e) {
-                      print('[AppSelectionScreen] Error saving apps: $e');
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                      }
-                    }
-                  },
-            child: Text(
-              'SAVE',
-              style: TextStyle(
-                color: canModify
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: canModify
                     ? Theme.of(context).colorScheme.primary
-                    : Colors.grey,
-                fontWeight: FontWeight.bold,
+                    : Colors.grey.shade300,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+              ),
+              child: const Text(
+                'SAVE',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
           ),

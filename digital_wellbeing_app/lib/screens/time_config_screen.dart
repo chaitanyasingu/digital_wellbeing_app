@@ -41,56 +41,65 @@ class _TimeConfigScreenState extends ConsumerState<TimeConfigScreen> {
       appBar: AppBar(
         title: const Text('Restriction Times'),
         actions: [
-          TextButton(
-            onPressed: !canModify
-                ? null
-                : () async {
-                    try {
-                      final newStartTime = _formatTime(startTime);
-                      final newEndTime = _formatTime(endTime);
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: ElevatedButton(
+              onPressed: !canModify
+                  ? null
+                  : () async {
+                      try {
+                        final newStartTime = _formatTime(startTime);
+                        final newEndTime = _formatTime(endTime);
 
-                      // Update times in database
-                      await ref
-                          .read(rulesProvider.notifier)
-                          .updateRestrictionTimes(newStartTime, newEndTime);
+                        // Update times in database
+                        await ref
+                            .read(rulesProvider.notifier)
+                            .updateRestrictionTimes(newStartTime, newEndTime);
 
-                      // Read updated rules after save
-                      final updatedRules = ref.read(rulesProvider);
+                        // Read updated rules after save
+                        final updatedRules = ref.read(rulesProvider);
 
-                      // If enforcement is currently enabled, restart it with new times
-                      if (updatedRules.isEnforcementEnabled) {
-                        final service = ref.read(enforcementServiceProvider);
-                        await service.stopEnforcement();
-                        await service.startEnforcement(
-                          updatedRules.alwaysAllowedApps,
-                          newStartTime,
-                          newEndTime,
-                        );
+                        // If enforcement is currently enabled, restart it with new times
+                        if (updatedRules.isEnforcementEnabled) {
+                          final service = ref.read(enforcementServiceProvider);
+                          await service.stopEnforcement();
+                          await service.startEnforcement(
+                            updatedRules.alwaysAllowedApps,
+                            newStartTime,
+                            newEndTime,
+                          );
+                        }
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Times updated successfully'),
+                            ),
+                          );
+                          Navigator.pop(context);
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
                       }
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Times updated successfully'),
-                          ),
-                        );
-                        Navigator.pop(context);
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                      }
-                    }
-                  },
-            child: Text(
-              'SAVE',
-              style: TextStyle(
-                color: canModify
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: canModify
                     ? Theme.of(context).colorScheme.primary
-                    : Colors.grey,
-                fontWeight: FontWeight.bold,
+                    : Colors.grey.shade300,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+              ),
+              child: const Text(
+                'SAVE',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
           ),
