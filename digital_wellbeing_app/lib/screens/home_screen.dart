@@ -146,66 +146,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             // Tamper Detection Warnings
             if (tamperState.showWarning) ...[
-              // Force-close warning
-              if (tamperState.hasRecentForceCloses)
-                Card(
-                  color: Colors.deepOrange.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              color: Colors.deepOrange.shade700,
-                              size: 32,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Bypass Attempt Detected',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.deepOrange.shade700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Detected ${tamperState.forceCloseCount} force-close attempts. '
-                                    'Repeatedly closing this app won\'t disable restrictions.',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.deepOrange.shade900,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                ref
-                                    .read(tamperDetectionProvider.notifier)
-                                    .dismissWarning();
-                              },
-                              child: const Text('Dismiss'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               // Accessibility disabled warning (more serious)
               if (tamperState.isAccessibilityDisabled)
                 Card(
@@ -319,12 +259,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           onChanged: canModify
                               ? (value) async {
                                   try {
-                                    // Check accessibility status when toggling
-                                    ref
-                                        .read(
-                                          accessibilityStatusProvider.notifier,
-                                        )
-                                        .checkStatus();
+                                    // If trying to enable, check accessibility permission first
+                                    if (value) {
+                                      // Check accessibility status
+                                      await ref
+                                          .read(
+                                            accessibilityStatusProvider.notifier,
+                                          )
+                                          .checkStatus();
+
+                                      // Get the updated accessibility state
+                                      final isAccessibilityEnabled = ref
+                                          .read(accessibilityStatusProvider)
+                                          .isEnabled;
+
+                                      if (!isAccessibilityEnabled) {
+                                        // Show dialog and redirect to settings
+                                        if (context.mounted) {
+                                          showDialog(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: const Text(
+                                                'Accessibility Permission Required',
+                                              ),
+                                              content: const Text(
+                                                'Enable Accessibility Service in Settings to start enforcement.',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                ElevatedButton(
+                                                  onPressed: () {
+                                                    Navigator.pop(context);
+                                                    ref
+                                                        .read(
+                                                          enforcementServiceProvider,
+                                                        )
+                                                        .openAccessibilitySettings();
+                                                  },
+                                                  child: const Text(
+                                                    'Go to Settings',
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
+                                        return;
+                                      }
+                                    }
 
                                     await ref
                                         .read(rulesProvider.notifier)

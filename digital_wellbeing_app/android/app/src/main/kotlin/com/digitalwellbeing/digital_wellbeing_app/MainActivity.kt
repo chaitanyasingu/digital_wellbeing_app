@@ -67,23 +67,28 @@ class MainActivity : FlutterActivity() {
                     android.util.Log.d("MainActivity", "Restriction window: $startTime - $endTime")
                     android.util.Log.d("MainActivity", "Allowed apps list: ${allowedApps.joinToString(", ")}")
                     
-                    // Save to shared preferences
+                    // Save to shared preferences with commit() instead of apply() for immediate persistence
                     val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
                     prefs.edit().apply {
+                        clear() // Clear old data to prevent stale data
                         putStringSet("allowed_apps", allowedApps.toSet())
                         putString("start_time", startTime)
                         putString("end_time", endTime)
                         putBoolean("enforcement_enabled", true)
                         putLong("last_known_time", System.currentTimeMillis())
-                        apply()
+                        commit() // Use commit() instead of apply() for synchronous write
                     }
                     
                     // Verify what was saved
                     val savedApps = prefs.getStringSet("allowed_apps", emptySet())
                     val savedStart = prefs.getString("start_time", "")
                     val savedEnd = prefs.getString("end_time", "")
-                    android.util.Log.d("MainActivity", "Verified saved - Apps: ${savedApps?.size}, Start: $savedStart, End: $savedEnd")
-                    android.util.Log.d("MainActivity", "Verified saved apps list: ${savedApps?.joinToString(", ")}")
+                    android.util.Log.d("MainActivity", "[VERIFICATION] Saved to SharedPreferences - Apps: ${savedApps?.size}, Start: $savedStart, End: $savedEnd")
+                    android.util.Log.d("MainActivity", "[VERIFICATION] Saved apps list: ${savedApps?.joinToString(", ")}")
+                    
+                    if (savedApps?.isEmpty() == true) {
+                        android.util.Log.w("MainActivity", "[WARNING] No allowed apps were saved!")
+                    }
                     
                     // Schedule restriction notifications
                     RestrictionNotificationReceiver.scheduleRestrictionAlerts(this, startTime, endTime)
@@ -96,13 +101,19 @@ class MainActivity : FlutterActivity() {
                         startService(serviceIntent)
                     }
                     
+                    android.util.Log.d("MainActivity", "[SERVICE_START] Foreground service started")
                     result.success(true)
                 }
                 "stopEnforcement" -> {
-                    android.util.Log.d("MainActivity", "Stopping enforcement")
+                    android.util.Log.d("MainActivity", "[STOP] Stopping enforcement service")
                     
                     val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
-                    prefs.edit().putBoolean("enforcement_enabled", false).apply()
+                    prefs.edit().apply {
+                        putBoolean("enforcement_enabled", false)
+                        commit() // Use commit() for synchronous write
+                    }
+                    
+                    android.util.Log.d("MainActivity", "[STOP] Set enforcement_enabled to false in SharedPreferences")
                     
                     // Cancel restriction notifications
                     RestrictionNotificationReceiver.cancelRestrictionAlerts(this)
@@ -111,6 +122,7 @@ class MainActivity : FlutterActivity() {
                     val serviceIntent = Intent(this, EnforcementForegroundService::class.java)
                     stopService(serviceIntent)
                     
+                    android.util.Log.d("MainActivity", "[STOP] Enforcement service stopped")
                     result.success(true)
                 }
                 "isAccessibilityEnabled" -> {

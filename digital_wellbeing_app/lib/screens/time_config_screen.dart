@@ -47,42 +47,70 @@ class _TimeConfigScreenState extends ConsumerState<TimeConfigScreen> {
               onPressed: !canModify
                   ? null
                   : () async {
+                      if (!context.mounted) return;
+                      
                       try {
                         final newStartTime = _formatTime(startTime);
                         final newEndTime = _formatTime(endTime);
+
+                        print('[TimeConfigScreen] Saving times: $newStartTime - $newEndTime');
 
                         // Update times in database
                         await ref
                             .read(rulesProvider.notifier)
                             .updateRestrictionTimes(newStartTime, newEndTime);
 
+                        if (!context.mounted) return;
+
                         // Read updated rules after save
                         final updatedRules = ref.read(rulesProvider);
+                        print('[TimeConfigScreen] After update, rules: ${updatedRules.restrictionStartTime} - ${updatedRules.restrictionEndTime}');
 
                         // If enforcement is currently enabled, restart it with new times
                         if (updatedRules.isEnforcementEnabled) {
+                          print('[TimeConfigScreen] Restarting enforcement with updated times');
                           final service = ref.read(enforcementServiceProvider);
+                          
+                          // Stop enforcement first
                           await service.stopEnforcement();
+                          
+                          // Small delay to ensure service is fully stopped
+                          await Future.delayed(const Duration(milliseconds: 500));
+                          
+                          // Start enforcement with new times
                           await service.startEnforcement(
                             updatedRules.alwaysAllowedApps,
                             newStartTime,
                             newEndTime,
                           );
+                          
+                          print('[TimeConfigScreen] Enforcement restarted successfully');
                         }
 
+                        if (!context.mounted) return;
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Times updated successfully'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        
+                        // Use delayed navigation to ensure operations complete
+                        await Future.delayed(const Duration(milliseconds: 100));
+                        
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Times updated successfully'),
-                            ),
-                          );
                           Navigator.pop(context);
                         }
                       } catch (e) {
+                        print('[TimeConfigScreen] Error saving times: $e');
                         if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
                         }
                       }
                     },

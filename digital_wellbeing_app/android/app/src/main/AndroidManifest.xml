@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     
     <application
         android:label="Digital Mindfulness"
@@ -40,10 +41,9 @@
         <activity
             android:name=".BlockingActivity"
             android:exported="false"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
             android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+            android:theme="@android:style/Theme.Light.NoTitleBar.Fullscreen" />
         
         <!-- Accessibility Service -->
         <service

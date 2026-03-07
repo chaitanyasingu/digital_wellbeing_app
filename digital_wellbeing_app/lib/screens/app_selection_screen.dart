@@ -91,51 +91,68 @@ class _AppSelectionScreenState extends ConsumerState<AppSelectionScreen> {
               onPressed: !canModify
                   ? null
                   : () async {
+                      if (!context.mounted) return;
+                      
                       try {
                         final newAppsList = selectedApps.toList();
-                        print(
-                          '[AppSelectionScreen] Saving ${newAppsList.length} apps',
-                        );
+                        print('[AppSelectionScreen] Saving ${newAppsList.length} apps');
 
                         // Update allowed apps in database
                         await ref
                             .read(rulesProvider.notifier)
                             .updateAllowedApps(newAppsList);
 
+                        if (!context.mounted) return;
+
                         // Read updated rules after save
                         final updatedRules = ref.read(rulesProvider);
-                        print(
-                          '[AppSelectionScreen] After update, rules has ${updatedRules.alwaysAllowedApps.length} apps',
-                        );
+                        print('[AppSelectionScreen] After update, rules has ${updatedRules.alwaysAllowedApps.length} apps');
 
                         // If enforcement is currently enabled, restart it with new apps
                         if (updatedRules.isEnforcementEnabled) {
-                          print(
-                            '[AppSelectionScreen] Restarting enforcement with updated apps',
-                          );
+                          print('[AppSelectionScreen] Restarting enforcement with updated apps');
                           final service = ref.read(enforcementServiceProvider);
+                          
+                          // Stop enforcement first
                           await service.stopEnforcement();
+                          
+                          // Small delay to ensure service is fully stopped
+                          await Future.delayed(const Duration(milliseconds: 500));
+                          
+                          // Start enforcement with new apps
                           await service.startEnforcement(
                             newAppsList,
                             updatedRules.restrictionStartTime,
                             updatedRules.restrictionEndTime,
                           );
+                          
+                          print('[AppSelectionScreen] Enforcement restarted successfully');
                         }
 
+                        if (!context.mounted) return;
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Apps updated successfully'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        
+                        // Use delayed navigation to ensure operations complete
+                        await Future.delayed(const Duration(milliseconds: 100));
+                        
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Apps updated successfully'),
-                            ),
-                          );
                           Navigator.pop(context);
                         }
                       } catch (e) {
                         print('[AppSelectionScreen] Error saving apps: $e');
                         if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
                         }
                       }
                     },

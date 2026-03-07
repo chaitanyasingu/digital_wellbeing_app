@@ -4,6 +4,11 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.WindowManager
+import android.widget.LinearLayout
+import android.widget.Button
+import android.widget.TextView
+import android.graphics.PixelFormat
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -36,6 +41,9 @@ class AppBlockingService : AccessibilityService() {
             "com.digitalwellbeing.digital_wellbeing_app"
         )
     }
+    
+    private var currentBlockingView: LinearLayout? = null
+    private val windowManager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -49,14 +57,17 @@ class AppBlockingService : AccessibilityService() {
                 return
             }
 
-            // Check if enforcement is enabled
+            // Check if enforcement is enabled - Re-read from SharedPreferences each time
             val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
-            val enforcementEnabled = prefs.getBoolean("enforcement_enabled", false)
             
-            Log.d(TAG, "Enforcement enabled: $enforcementEnabled")
+            // Force reload preferences from disk
+            prefs.all // This forces Android to sync from disk
+            
+            val enforcementEnabled = prefs.getBoolean("enforcement_enabled", false)
+            Log.d(TAG, "[ENFORCEMENT_CHECK] Enforcement enabled: $enforcementEnabled")
             
             if (!enforcementEnabled) {
-                Log.d(TAG, "Enforcement disabled, ignoring $packageName")
+                Log.d(TAG, "[ENFORCEMENT_CHECK] Enforcement disabled, ignoring $packageName")
                 return
             }
 
@@ -65,39 +76,165 @@ class AppBlockingService : AccessibilityService() {
             val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
             
             val isRestricted = isCurrentTimeRestricted(startTime, endTime)
-            Log.d(TAG, "Restriction window: $startTime-$endTime, Currently restricted: $isRestricted")
+            Log.d(TAG, "[RESTRICTION_CHECK] Restriction window: $startTime-$endTime, Currently restricted: $isRestricted")
             
             if (!isRestricted) {
-                Log.d(TAG, "Not in restriction window, allowing $packageName")
+                Log.d(TAG, "[RESTRICTION_CHECK] Not in restriction window, allowing $packageName")
                 return
             }
 
-            // Check if app is in allowed list
+            // Check if app is in allowed list - Read fresh from preferences
             val allowedApps = prefs.getStringSet("allowed_apps", emptySet()) ?: emptySet()
-            Log.d(TAG, "Allowed apps count: ${allowedApps.size}")
-            Log.d(TAG, "Allowed apps list: ${allowedApps.joinToString(", ")}")
-            Log.d(TAG, "Checking if '$packageName' is in allowed list...")
+            Log.d(TAG, "[ALLOWED_APPS_CHECK] Total allowed apps: ${allowedApps.size}")
             
-            if (allowedApps.contains(packageName)) {
-                Log.d(TAG, "✓ App $packageName IS in allowed list, ALLOWING")
+            if (allowedApps.isEmpty()) {
+                Log.w(TAG, "[ALLOWED_APPS_CHECK] WARNING: No allowed apps configured!")
+            }
+            
+            Log.d(TAG, "[ALLOWED_APPS_CHECK] Allowed apps list: ${allowedApps.joinToString(", ")}")
+            Log.d(TAG, "[ALLOWED_APPS_CHECK] Checking if '$packageName' is in allowed list...")
+            
+            val isAllowed = allowedApps.contains(packageName)
+            Log.d(TAG, "[DECISION] Package $packageName - Allowed: $isAllowed")
+            
+            if (isAllowed) {
+                Log.d(TAG, "[DECISION] ✓ App $packageName IS in allowed list, ALLOWING access")
                 return
             } else {
-                Log.d(TAG, "✗ App $packageName NOT in allowed list, BLOCKING")
+                Log.d(TAG, "[DECISION] ✗ App $packageName NOT in allowed list, BLOCKING access")
                 blockApp(packageName)
             }
         }
     }
 
     private fun blockApp(packageName: String) {
-        Log.d(TAG, "Showing blocking dialog for $packageName")
+        Log.d(TAG, "Showing blocking overlay for $packageName")
         
-        // Launch blocking overlay
-        val intent = Intent(this, BlockingActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            putExtra("blocked_package", packageName)
+        try {
+            // Remove existing overlay if any
+            if (currentBlockingView != null) {
+                windowManager.removeView(currentBlockingView)
+                currentBlockingView = null
+            }
+            
+            // Get app name
+            val appName = try {
+                val pm = packageManager
+                val appInfo = pm.getApplicationInfo(packageName, 0)
+                pm.getApplicationLabel(appInfo).toString()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get app name: ${e.message}")
+                packageName
+            }
+            
+            // Get unlock time
+            val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
+            val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
+            
+            Log.d(TAG, "Creating overlay for $appName, unlock time: $endTime")
+            
+            // Create overlay layout
+            val layout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(64, 64, 64, 64)
+                gravity = android.view.Gravity.CENTER
+                setBackgroundColor(0xFFF5F5F5.toInt())
+            }
+            
+            // Icon
+            val iconText = TextView(this).apply {
+                text = "🧘"
+                textSize = 64f
+                gravity = android.view.Gravity.CENTER
+                setPadding(0, 0, 0, 24)
+            }
+            
+            val titleText = TextView(this).apply {
+                text = "Mindful Moment"
+                textSize = 28f
+                setTextColor(0xFF6B4FA0.toInt())
+                gravity = android.view.Gravity.CENTER
+                setPadding(0, 0, 0, 16)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+            }
+            
+            val appNameText = TextView(this).apply {
+                text = appName
+                textSize = 18f
+                setTextColor(0xFF666666.toInt())
+                gravity = android.view.Gravity.CENTER
+                setPadding(0, 0, 0, 8)
+            }
+            
+            val messageText = TextView(this).apply {
+                text = "Taking a break from this app.\nAvailable again at $endTime\n\nUse this time for something meaningful 🌟"
+                textSize = 16f
+                setTextColor(0xFF888888.toInt())
+                gravity = android.view.Gravity.CENTER
+                setPadding(0, 0, 0, 48)
+                lineHeight = (20 * resources.displayMetrics.scaledDensity).toInt()
+            }
+            
+            val backButton = Button(this).apply {
+                text = "GO BACK"
+                textSize = 16f
+                setPadding(48, 24, 48, 24)
+                setBackgroundColor(0xFF6B4FA0.toInt())
+                setTextColor(0xFFFFFFFF.toInt())
+                setOnClickListener {
+                    Log.d(TAG, "Back button clicked, returning to home")
+                    // Close overlay and return to home
+                    removeBlockingOverlay()
+                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                        addCategory(Intent.CATEGORY_HOME)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(homeIntent)
+                }
+            }
+            
+            layout.addView(iconText)
+            layout.addView(titleText)
+            layout.addView(appNameText)
+            layout.addView(messageText)
+            layout.addView(backButton)
+            
+            // Window manager params for overlay
+            val params = WindowManager.LayoutParams().apply {
+                type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+                format = PixelFormat.TRANSLUCENT
+                flags = (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE 
+                    or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                    or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                    or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+                width = WindowManager.LayoutParams.MATCH_PARENT
+                height = WindowManager.LayoutParams.MATCH_PARENT
+                x = 0
+                y = 0
+            }
+            
+            Log.d(TAG, "Adding overlay to window manager...")
+            windowManager.addView(layout, params)
+            currentBlockingView = layout
+            Log.d(TAG, "Blocking overlay displayed successfully")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "CRITICAL ERROR: Failed to show blocking overlay", e)
+            e.printStackTrace()
         }
-        startActivity(intent)
+    }
+    
+    private fun removeBlockingOverlay() {
+        try {
+            if (currentBlockingView != null) {
+                Log.d(TAG, "Removing blocking overlay")
+                windowManager.removeView(currentBlockingView)
+                currentBlockingView = null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing overlay: ${e.message}", e)
+        }
     }
 
     private fun isCurrentTimeRestricted(startTime: String, endTime: String): Boolean {

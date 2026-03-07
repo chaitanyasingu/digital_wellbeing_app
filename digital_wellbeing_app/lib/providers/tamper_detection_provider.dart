@@ -102,16 +102,16 @@ class TamperDetectionNotifier extends StateNotifier<TamperDetectionState> {
         await _service.trackAccessibilityDisabled();
         print('[TamperDetection] Accessibility service was disabled!');
 
-        // Show notification (only once per disable event)
-        if (!_hasShownAccessibilityNotification) {
-          await _notificationService.showTamperWarning(
-            title: '⚠️ Service Disabled',
-            message:
-                'Digital Mindfulness accessibility service was turned off. '
-                'Restrictions cannot be enforced until re-enabled.',
-          );
-          _hasShownAccessibilityNotification = true;
-        }
+        // Notification disabled - user doesn't want tamper warnings
+        // if (!_hasShownAccessibilityNotification) {
+        //   await _notificationService.showTamperWarning(
+        //     title: '⚠️ Service Disabled',
+        //     message:
+        //         'Digital Mindfulness accessibility service was turned off. '
+        //         'Restrictions cannot be enforced until re-enabled.',
+        //   );
+        //   _hasShownAccessibilityNotification = true;
+        // }
       }
 
       // Reset notification flag when accessibility is re-enabled
