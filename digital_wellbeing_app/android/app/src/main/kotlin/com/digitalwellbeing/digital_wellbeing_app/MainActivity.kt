@@ -180,6 +180,15 @@ class MainActivity : FlutterActivity() {
                     TamperWarningNotification.show(this, title, message)
                     result.success(null)
                 }
+                "showAppBlockingNotification" -> {
+                    val endTime = call.argument<String>("endTime") ?: "10:00"
+                    RestrictionNotificationReceiver().showAppBlockingNotification(this, endTime)
+                    result.success(null)
+                }
+                "dismissAppBlockingNotification" -> {
+                    RestrictionNotificationReceiver().dismissAppBlockingNotification(this)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

@@ -57,6 +57,33 @@ class NotificationService {
     }
   }
 
+  /// Show persistent app blocking notification during restriction period
+  /// This notification persists until the restriction period ends
+  Future<void> showAppBlockingNotification({
+    required String endTime,
+  }) async {
+    try {
+      debugPrint('[NotificationService] [NOTIFICATION] Calling Android showAppBlockingNotification with endTime=$endTime');
+      await _channel.invokeMethod('showAppBlockingNotification', {
+        'endTime': endTime,
+      });
+      debugPrint('[NotificationService] [NOTIFICATION] ✓ showAppBlockingNotification method call completed');
+    } on PlatformException catch (e) {
+      debugPrint('[NotificationService] [NOTIFICATION] ✗ Failed to show app blocking notification: ${e.message}');
+    }
+  }
+
+  /// Dismiss the app blocking notification
+  Future<void> dismissAppBlockingNotification() async {
+    try {
+      debugPrint('[NotificationService] [NOTIFICATION] Calling Android dismissAppBlockingNotification');
+      await _channel.invokeMethod('dismissAppBlockingNotification');
+      debugPrint('[NotificationService] [NOTIFICATION] ✓ dismissAppBlockingNotification method call completed');
+    } on PlatformException catch (e) {
+      debugPrint('[NotificationService] [NOTIFICATION] ✗ Failed to dismiss app blocking notification: ${e.message}');
+    }
+  }
+
   /// Get logs from accessibility service for debugging
   Future<List<String>> getAccessibilityLogs() async {
     try {

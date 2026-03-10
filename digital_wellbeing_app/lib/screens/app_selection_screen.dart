@@ -338,57 +338,93 @@ class _AppSelectionScreenState extends ConsumerState<AppSelectionScreen> {
         final isSelected = selectedApps.contains(app.packageName);
         final isDefault = defaultEssentialApps.contains(app.packageName);
 
-        return ListTile(
-          leading: Icon(
-            isDefault ? Icons.phone_android : Icons.android,
-            color: isDefault ? Colors.blue : null,
-          ),
-          title: Row(
-            children: [
-              Expanded(child: Text(app.appName)),
-              if (isDefault)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade100,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Essential',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.blue.shade700,
-                      fontWeight: FontWeight.bold,
+        // Apply opacity to blocked apps (not in selected list)
+        return Opacity(
+          opacity: isSelected ? 1.0 : 0.5,
+          child: ListTile(
+            leading: Icon(
+              isDefault ? Icons.phone_android : Icons.android,
+              color: isDefault ? Colors.blue : null,
+            ),
+            title: Row(
+              children: [
+                Expanded(child: Text(app.appName)),
+                if (!isSelected)
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.lock,
+                          size: 12,
+                          color: Colors.red.shade700,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Blocked',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.red.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-            ],
-          ),
-          subtitle: Text(app.packageName, style: const TextStyle(fontSize: 12)),
-          trailing: Checkbox(
-            value: isSelected,
-            onChanged: (value) {
+                if (isDefault)
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Essential',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            subtitle: Text(app.packageName, style: const TextStyle(fontSize: 12)),
+            trailing: Checkbox(
+              value: isSelected,
+              onChanged: (value) {
+                setState(() {
+                  if (value == true) {
+                    selectedApps.add(app.packageName);
+                  } else {
+                    selectedApps.remove(app.packageName);
+                  }
+                });
+              },
+            ),
+            onTap: () {
               setState(() {
-                if (value == true) {
-                  selectedApps.add(app.packageName);
-                } else {
+                if (isSelected) {
                   selectedApps.remove(app.packageName);
+                } else {
+                  selectedApps.add(app.packageName);
                 }
               });
             },
           ),
-          onTap: () {
-            setState(() {
-              if (isSelected) {
-                selectedApps.remove(app.packageName);
-              } else {
-                selectedApps.add(app.packageName);
-              }
-            });
-          },
         );
       },
     );

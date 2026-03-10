@@ -1,7 +1,8 @@
 package com.digitalwellbeing.digital_wellbeing_app
 
 import android.accessibilityservice.AccessibilityService
-import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.WindowManager
@@ -9,6 +10,7 @@ import android.widget.LinearLayout
 import android.widget.Button
 import android.widget.TextView
 import android.graphics.PixelFormat
+import android.app.ActivityManager
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -42,8 +44,12 @@ class AppBlockingService : AccessibilityService() {
         )
     }
     
-    private var currentBlockingView: LinearLayout? = null
+    @Volatile private var currentBlockingView: LinearLayout? = null
+    @Volatile private var currentBlockedPackageName: String? = null  // Track which app's overlay is showing
     private val windowManager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
+    private val blockedAppsInProgress = mutableSetOf<String>()
+    @Volatile private var lastBlockedTime = 0L  // Global debounce to prevent duplicate overlays from rapid accessibility events
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -108,12 +114,94 @@ class AppBlockingService : AccessibilityService() {
     }
 
     private fun blockApp(packageName: String) {
-        Log.d(TAG, "Showing blocking overlay for $packageName")
+        Log.d(TAG, "[BLOCK] blockApp() called for: $packageName")
         
+        val currentTime = System.currentTimeMillis()
+        
+        // GLOBAL DEBOUNCE: Prevent showing ANY overlay within 1 second of last block
+        // This prevents duplicate overlays from rapid accessibility events on the same app launch
+        if ((currentTime - lastBlockedTime) < 1000) {
+            Log.d(TAG, "[BLOCK] GLOBAL_DEBOUNCE: Last overlay shown ${currentTime - lastBlockedTime}ms ago. Ignoring this event.")
+            return
+        }
+        
+        // If an overlay is already visible, don't stack another one on top
+        if (currentBlockedPackageName != null) {
+            Log.d(TAG, "[BLOCK] ⚠ Overlay already showing for ${currentBlockedPackageName}. Skipping $packageName")
+            return
+        }
+        
+        // If this app is already mid-block, skip
+        if (blockedAppsInProgress.contains(packageName)) {
+            Log.d(TAG, "[BLOCK] $packageName is already being blocked, skipping")
+            return
+        }
+        
+        // Record this blocking attempt
+        lastBlockedTime = currentTime
+        
+        // Add to blocking set immediately to prevent duplicate blocks
+        blockedAppsInProgress.add(packageName)
+        currentBlockedPackageName = packageName  // Track which app's overlay we're showing
+        Log.d(TAG, "[BLOCK] Added $packageName to blocking in-progress set")
+        
+        Log.d(TAG, "=== BLOCKING APP FLOW STARTED FOR $packageName ===")
+        
+        try {
+            // Step 1: Show blocking overlay immediately
+            Log.d(TAG, "Step 1: Showing blocking overlay for $packageName")
+            showBlockingOverlay(packageName)
+            
+            // Step 2: Kill the app process (happens while overlay is visible)
+            Thread {
+                Thread.sleep(300)  // Quick kill after showing overlay
+                
+                try {
+                    Log.d(TAG, "Step 2: Killing process for $packageName")
+                    
+                    // Method 1: Try ActivityManager.killBackgroundProcesses
+                    val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+                    activityManager.killBackgroundProcesses(packageName)
+                    Log.d(TAG, "killBackgroundProcesses() called for $packageName")
+                    
+                    // Method 2: Also try Runtime.exec() with 'am force-stop'
+                    try {
+                        Runtime.getRuntime().exec(arrayOf("am", "force-stop", packageName)).waitFor()
+                        Log.d(TAG, "am force-stop executed for $packageName")
+                    } catch (e: Exception) {
+                        Log.d(TAG, "am force-stop failed (expected): ${e.message}")
+                    }
+                    
+                    Log.d(TAG, "Process kill complete for $packageName")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error killing process: ${e.message}", e)
+                }
+                
+                // NOTE: We do NOT auto-send to home or remove overlay here
+                // The user will click "GO HOME" button on the overlay to proceed
+                // This allows the overlay to stay visible until user takes action
+                Log.d(TAG, "Overlay is now visible, waiting for user to click GO HOME button")
+                
+            }.start()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "FATAL ERROR in blockApp: ${e.message}", e)
+            e.printStackTrace()
+            blockedAppsInProgress.remove(packageName)
+        }
+    }
+    
+    private fun showBlockingOverlay(packageName: String) {
+        Log.d(TAG, "[OVERLAY] ========== CREATING OVERLAY FOR $packageName ==========")
         try {
             // Remove existing overlay if any
             if (currentBlockingView != null) {
-                windowManager.removeView(currentBlockingView)
+                try {
+                    Log.d(TAG, "[OVERLAY] Removing previous overlay before creating new one")
+                    windowManager.removeView(currentBlockingView)
+                } catch (e: Exception) {
+                    Log.d(TAG, "[OVERLAY] Could not remove previous overlay")
+                }
                 currentBlockingView = null
             }
             
@@ -131,7 +219,7 @@ class AppBlockingService : AccessibilityService() {
             val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
             val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
             
-            Log.d(TAG, "Creating overlay for $appName, unlock time: $endTime")
+            Log.d(TAG, "Creating blocking overlay for $appName, unlock time: $endTime")
             
             // Create overlay layout
             val layout = LinearLayout(this).apply {
@@ -167,7 +255,7 @@ class AppBlockingService : AccessibilityService() {
             }
             
             val messageText = TextView(this).apply {
-                text = "Taking a break from this app.\nAvailable again at $endTime\n\nUse this time for something meaningful 🌟"
+                text = "This app is restricted.\nAvailable again at $endTime\n\nUse this time for something meaningful 🌟"
                 textSize = 16f
                 setTextColor(0xFF888888.toInt())
                 gravity = android.view.Gravity.CENTER
@@ -176,20 +264,28 @@ class AppBlockingService : AccessibilityService() {
             }
             
             val backButton = Button(this).apply {
-                text = "GO BACK"
+                text = "GO HOME"
                 textSize = 16f
                 setPadding(48, 24, 48, 24)
                 setBackgroundColor(0xFF6B4FA0.toInt())
                 setTextColor(0xFFFFFFFF.toInt())
                 setOnClickListener {
-                    Log.d(TAG, "Back button clicked, returning to home")
-                    // Close overlay and return to home
-                    removeBlockingOverlay()
-                    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_HOME)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(homeIntent)
+                    Log.d(TAG, "[BUTTON_CLICK] User clicked GO HOME button for $packageName")
+                    
+                    // Use accessibility global action for immediate, reliable home navigation
+                    performGlobalAction(GLOBAL_ACTION_HOME)
+                    Log.d(TAG, "[BUTTON_CLICK] Performed GLOBAL_ACTION_HOME")
+                    
+                    // Remove overlay and cleanup on main thread after home animation completes
+                    mainHandler.postDelayed({
+                        removeBlockingOverlay()
+                        
+                        // Cleanup - clear all tracking so the app is blockable again next open
+                        Log.d(TAG, "[BUTTON_CLICK] Removing $packageName from blocking in-progress set")
+                        blockedAppsInProgress.remove(packageName)
+                        currentBlockedPackageName = null  // Clear overlay tracking
+                        Log.d(TAG, "[BUTTON_CLICK] ✓ Cleanup complete for $packageName")
+                    }, 500)
                 }
             }
             
@@ -199,28 +295,31 @@ class AppBlockingService : AccessibilityService() {
             layout.addView(messageText)
             layout.addView(backButton)
             
-            // Window manager params for overlay
+            // Store package name in tag for cleanup later
+            layout.tag = packageName
+            
+            // Window manager params for overlay - FULL SCREEN, INTERACTIVE
+            // IMPORTANT: Remove FLAG_NOT_FOCUSABLE so button can receive clicks!
             val params = WindowManager.LayoutParams().apply {
                 type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
                 format = PixelFormat.TRANSLUCENT
-                flags = (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE 
-                    or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-                    or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                flags = (WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                     or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                    or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+                    or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)  // Stay within screen bounds
                 width = WindowManager.LayoutParams.MATCH_PARENT
                 height = WindowManager.LayoutParams.MATCH_PARENT
                 x = 0
                 y = 0
             }
             
-            Log.d(TAG, "Adding overlay to window manager...")
+            Log.d(TAG, "[OVERLAY] Adding overlay to window manager...")
             windowManager.addView(layout, params)
             currentBlockingView = layout
-            Log.d(TAG, "Blocking overlay displayed successfully")
+            Log.d(TAG, "[OVERLAY] ✓ Blocking overlay displayed successfully for $packageName")
+            Log.d(TAG, "[OVERLAY] Overlay is now visible, waiting for user to click GO HOME button")
             
         } catch (e: Exception) {
-            Log.e(TAG, "CRITICAL ERROR: Failed to show blocking overlay", e)
+            Log.e(TAG, "ERROR: Failed to show blocking overlay", e)
             e.printStackTrace()
         }
     }
@@ -228,12 +327,15 @@ class AppBlockingService : AccessibilityService() {
     private fun removeBlockingOverlay() {
         try {
             if (currentBlockingView != null) {
-                Log.d(TAG, "Removing blocking overlay")
+                Log.d(TAG, "[OVERLAY] Removing overlay for $currentBlockedPackageName")
                 windowManager.removeView(currentBlockingView)
                 currentBlockingView = null
+                Log.d(TAG, "[OVERLAY] ✓ Overlay removed successfully")
+            } else {
+                Log.d(TAG, "[OVERLAY] removeBlockingOverlay() called but no overlay exists")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error removing overlay: ${e.message}", e)
+            Log.e(TAG, "[OVERLAY] Error removing overlay: ${e.message}", e)
         }
     }
 

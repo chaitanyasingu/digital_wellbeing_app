@@ -20,6 +20,7 @@ class RestrictionNotificationReceiver : BroadcastReceiver() {
         private const val NOTIFICATION_ID = 2001
         private const val CHANNEL_ID = "restriction_alerts"
         private const val CHANNEL_NAME = "Restriction Alerts"
+        private const val APP_BLOCKING_NOTIFICATION_ID = 999
         private const val ACTION_RESTRICTION_START = "com.digitalwellbeing.RESTRICTION_START"
         private const val ACTION_RESTRICTION_END = "com.digitalwellbeing.RESTRICTION_END"
 
@@ -226,5 +227,57 @@ class RestrictionNotificationReceiver : BroadcastReceiver() {
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
+    }
+
+    fun showAppBlockingNotification(context: Context, endTime: String) {
+        Log.d(TAG, "[NOTIFICATION] showAppBlockingNotification() called with endTime=$endTime")
+        
+        try {
+            createNotificationChannel(context)
+            Log.d(TAG, "[NOTIFICATION] Notification channel created")
+            
+            val mainIntent = Intent(context, MainActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                mainIntent,
+                PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setContentTitle("🚫 App Access Blocked")
+                .setContentText("Non-allowed apps are blocked until $endTime")
+                .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setOngoing(true) // Make the notification persistent
+                .setAutoCancel(false) // Don't auto-dismiss
+                .setStyle(
+                    NotificationCompat.BigTextStyle()
+                        .bigText("During the restriction period, only approved apps can be accessed. Restricted apps will be blocked until $endTime.")
+                )
+                .build()
+
+            Log.d(TAG, "[NOTIFICATION] Notification object created")
+
+            val notificationManager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            Log.d(TAG, "[NOTIFICATION] Showing notification with ID=$APP_BLOCKING_NOTIFICATION_ID in channel=$CHANNEL_ID")
+            notificationManager.notify(APP_BLOCKING_NOTIFICATION_ID, notification)
+            
+            Log.d(TAG, "[NOTIFICATION] ✓ App blocking notification shown successfully until $endTime")
+        } catch (e: Exception) {
+            Log.e(TAG, "[NOTIFICATION] ERROR showing app blocking notification: ${e.message}", e)
+            e.printStackTrace()
+        }
+    }
+
+    fun dismissAppBlockingNotification(context: Context) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(APP_BLOCKING_NOTIFICATION_ID)
+        
+        Log.d(TAG, "Dismissed app blocking notification")
     }
 }

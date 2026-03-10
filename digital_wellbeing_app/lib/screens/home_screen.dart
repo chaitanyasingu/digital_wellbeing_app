@@ -85,145 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Lock Status Banner (when settings are locked)
-            if (lockState.isLocked) ...[
-              Card(
-                color: Colors.red.shade50,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.lock_clock,
-                            color: Colors.red.shade700,
-                            size: 32,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Settings Locked',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: Colors.red.shade700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  lockState.lockMessage,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.red.shade900,
-                                  ),
-                                ),
-                                if (lockState.unlockTime != null) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Unlocks at ${time_utils.TimeService.formatTimeOfDay(time_utils.TimeOfDay(hour: lockState.unlockTime!.hour, minute: lockState.unlockTime!.minute))}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.red.shade700,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Tamper Detection Warnings
-            if (tamperState.showWarning) ...[
-              // Accessibility disabled warning (more serious)
-              if (tamperState.isAccessibilityDisabled)
-                Card(
-                  color: Colors.red.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.security,
-                              color: Colors.red.shade700,
-                              size: 32,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Service Disabled',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.red.shade700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Accessibility service was turned off. '
-                                    'Restrictions cannot be enforced until re-enabled.',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.red.shade900,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                ref
-                                    .read(tamperDetectionProvider.notifier)
-                                    .dismissWarning();
-                              },
-                              child: const Text('Dismiss'),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                ref
-                                    .read(enforcementServiceProvider)
-                                    .openAccessibilitySettings();
-                              },
-                              icon: const Icon(Icons.settings, size: 18),
-                              label: const Text('Re-enable'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade700,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 16),
-            ],
-
-            // Status Card
+            // Status Card - ONLY the toggle
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -356,18 +218,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Accessibility Service Status
+            // ONLY ONE Notification: Accessibility Service Status (when not enabled)
             if (!accessibilityState.isEnabled && rules.isEnforcementEnabled)
               Card(
-                color: Colors.orange.shade50,
+                color: Colors.blue.shade50,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      const Icon(Icons.warning, color: Colors.orange, size: 48),
+                      const Icon(Icons.info_outline, color: Colors.blue, size: 48),
                       const SizedBox(height: 8),
                       const Text(
-                        'Accessibility Required',
+                        'Accessibility Service Needed',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
@@ -375,7 +237,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Enable to enforce blocking',
+                        'Enable to enforce app blocking',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 12),
                       ),
@@ -393,8 +255,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
               ),
-            if (!accessibilityState.isEnabled && rules.isEnforcementEnabled)
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Configuration Card
             Card(
