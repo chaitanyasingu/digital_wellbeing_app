@@ -35,3 +35,9 @@
 
 # Keep model classes for JSON serialization
 -keep class com.digitalwellbeing.digital_wellbeing_app.models.** { *; }
+
+# Flutter deferred-components references legacy Play Core task APIs that are
+# not used by this app; suppress these missing warnings during shrinking.
+-dontwarn com.google.android.play.core.tasks.OnFailureListener
+-dontwarn com.google.android.play.core.tasks.OnSuccessListener
+-dontwarn com.google.android.play.core.tasks.Task
