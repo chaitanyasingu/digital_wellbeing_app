@@ -1,6 +1,8 @@
 package com.digitalwellbeing.digital_wellbeing_app
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -50,16 +52,33 @@ class AppBlockingService : AccessibilityService() {
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     private val blockedAppsInProgress = mutableSetOf<String>()
     @Volatile private var lastBlockedTime = 0L  // Global debounce to prevent duplicate overlays from rapid accessibility events
+    @Volatile private var lastGoHomeTime = 0L
+    @Volatile private var cachedHomePackages: Set<String> = emptySet()
+    @Volatile private var lastDismissedBlockedPackage: String? = null
+    @Volatile private var lastDismissedBlockedAt = 0L
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: return
             
             Log.d(TAG, "=== Window change detected: $packageName ===")
+
+            if (shouldIgnoreHomeTransition(packageName)) {
+                return
+            }
             
             // NEVER block system/launcher packages
-            if (SYSTEM_WHITELIST.contains(packageName)) {
+            if (isAlwaysAllowedPackage(packageName)) {
                 Log.d(TAG, "System/Launcher app - ALWAYS ALLOWED")
+                return
+            }
+
+            if (!isLaunchableApp(packageName)) {
+                Log.d(TAG, "Package $packageName has no launcher intent. Ignoring non-launchable component.")
+                return
+            }
+
+            if (shouldSuppressRecentlyDismissedPackage(packageName)) {
                 return
             }
 
@@ -113,6 +132,69 @@ class AppBlockingService : AccessibilityService() {
         }
     }
 
+    private fun shouldIgnoreHomeTransition(packageName: String): Boolean {
+        val elapsed = System.currentTimeMillis() - lastGoHomeTime
+        if (elapsed < 1500 && isAlwaysAllowedPackage(packageName)) {
+            Log.d(TAG, "Ignoring $packageName during post-home cooldown (${elapsed}ms)")
+            return true
+        }
+        return false
+    }
+
+    private fun isAlwaysAllowedPackage(packageName: String): Boolean {
+        return SYSTEM_WHITELIST.contains(packageName) || getHomePackages().contains(packageName)
+    }
+
+    private fun getHomePackages(): Set<String> {
+        if (cachedHomePackages.isNotEmpty()) {
+            return cachedHomePackages
+        }
+
+        return try {
+            val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_HOME)
+            }
+            val resolvedHomes = packageManager.queryIntentActivities(
+                homeIntent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            ).map { it.activityInfo.packageName }.toSet()
+
+            cachedHomePackages = resolvedHomes
+            Log.d(TAG, "Resolved home packages: ${resolvedHomes.joinToString(", ")}")
+            resolvedHomes
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to resolve home packages: ${e.message}", e)
+            emptySet()
+        }
+    }
+
+    private fun isLaunchableApp(packageName: String): Boolean {
+        return try {
+            packageManager.getLaunchIntentForPackage(packageName) != null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to check launcher intent for $packageName: ${e.message}", e)
+            false
+        }
+    }
+
+    private fun shouldSuppressRecentlyDismissedPackage(packageName: String): Boolean {
+        val dismissedPackage = lastDismissedBlockedPackage ?: return false
+        val elapsed = System.currentTimeMillis() - lastDismissedBlockedAt
+
+        if (dismissedPackage != packageName) {
+            return false
+        }
+
+        if (elapsed < 3000) {
+            Log.d(TAG, "Ignoring recently dismissed package $packageName for ${3000 - elapsed}ms")
+            return true
+        }
+
+        lastDismissedBlockedPackage = null
+        lastDismissedBlockedAt = 0L
+        return false
+    }
+
     private fun blockApp(packageName: String) {
         Log.d(TAG, "[BLOCK] blockApp() called for: $packageName")
         
@@ -158,21 +240,7 @@ class AppBlockingService : AccessibilityService() {
                 
                 try {
                     Log.d(TAG, "Step 2: Killing process for $packageName")
-                    
-                    // Method 1: Try ActivityManager.killBackgroundProcesses
-                    val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-                    activityManager.killBackgroundProcesses(packageName)
-                    Log.d(TAG, "killBackgroundProcesses() called for $packageName")
-                    
-                    // Method 2: Also try Runtime.exec() with 'am force-stop'
-                    try {
-                        Runtime.getRuntime().exec(arrayOf("am", "force-stop", packageName)).waitFor()
-                        Log.d(TAG, "am force-stop executed for $packageName")
-                    } catch (e: Exception) {
-                        Log.d(TAG, "am force-stop failed (expected): ${e.message}")
-                    }
-                    
-                    Log.d(TAG, "Process kill complete for $packageName")
+                    closeBlockedApp(packageName)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error killing process: ${e.message}", e)
                 }
@@ -271,6 +339,9 @@ class AppBlockingService : AccessibilityService() {
                 setTextColor(0xFFFFFFFF.toInt())
                 setOnClickListener {
                     Log.d(TAG, "[BUTTON_CLICK] User clicked GO HOME button for $packageName")
+                    lastGoHomeTime = System.currentTimeMillis()
+                    lastDismissedBlockedPackage = packageName
+                    lastDismissedBlockedAt = lastGoHomeTime
                     
                     // Use accessibility global action for immediate, reliable home navigation
                     performGlobalAction(GLOBAL_ACTION_HOME)
@@ -278,6 +349,7 @@ class AppBlockingService : AccessibilityService() {
                     
                     // Remove overlay and cleanup on main thread after home animation completes
                     mainHandler.postDelayed({
+                        closeBlockedApp(packageName)
                         removeBlockingOverlay()
                         
                         // Cleanup - clear all tracking so the app is blockable again next open
@@ -323,7 +395,24 @@ class AppBlockingService : AccessibilityService() {
             e.printStackTrace()
         }
     }
-    
+
+    private fun closeBlockedApp(packageName: String) {
+        try {
+            val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+            activityManager.killBackgroundProcesses(packageName)
+            Log.d(TAG, "killBackgroundProcesses() called for $packageName")
+        } catch (e: Exception) {
+            Log.e(TAG, "killBackgroundProcesses failed for $packageName: ${e.message}", e)
+        }
+
+        try {
+            Runtime.getRuntime().exec(arrayOf("am", "force-stop", packageName)).waitFor()
+            Log.d(TAG, "am force-stop executed for $packageName")
+        } catch (e: Exception) {
+            Log.d(TAG, "am force-stop failed (expected) for $packageName: ${e.message}")
+        }
+    }
+
     private fun removeBlockingOverlay() {
         try {
             if (currentBlockingView != null) {
