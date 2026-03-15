@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/password_service.dart';
+import '../widgets/password_dialog.dart';
 import 'home_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -40,6 +42,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _completeOnboarding() async {
+    final passwordService = PasswordService();
+    final alreadyHasPassword = await passwordService.hasPassword();
+
+    if (!mounted) return;
+
+    // If no password has been set yet, require the user to create one
+    if (!alreadyHasPassword) {
+      final passwordSet = await PasswordDialog.showSetup(context, passwordService);
+      if (!passwordSet || !mounted) return;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('has_seen_onboarding', true);
 

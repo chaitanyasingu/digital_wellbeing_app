@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:developer' as developer;
 import 'screens/splash_screen.dart';
 import 'services/background_job_service.dart';
@@ -9,6 +10,13 @@ import 'providers/tamper_detection_provider.dart';
 void main() async {
   // Initialize Flutter binding - required for plugins
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize AdMob SDK
+  try {
+    await MobileAds.instance.initialize();
+  } catch (e) {
+    developer.log('AdMob initialization failed (app continues)', name: 'MainApp', error: e);
+  }
 
   // Initialize background job service with error handling
   // Never let background service errors crash the app

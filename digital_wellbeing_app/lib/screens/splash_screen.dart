@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/password_service.dart';
+import '../widgets/password_dialog.dart';
 import 'onboarding_screen.dart';
 import 'home_screen.dart';
 
@@ -57,6 +59,18 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     if (hasSeenOnboarding) {
+      // If onboarding was already done but no password set yet (e.g. app
+      // updated after install), prompt now before entering the home screen.
+      final passwordService = PasswordService();
+      final hasPassword = await passwordService.hasPassword();
+
+      if (!mounted) return;
+
+      if (!hasPassword) {
+        await PasswordDialog.showSetup(context, passwordService);
+        if (!mounted) return;
+      }
+
       // Go directly to home
       Navigator.of(
         context,

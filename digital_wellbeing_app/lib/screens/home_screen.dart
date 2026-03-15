@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/password_provider.dart';
 import '../providers/rules_provider.dart';
 import '../providers/enforcement_provider.dart';
 import '../providers/settings_lock_provider.dart';
 import '../providers/tamper_detection_provider.dart';
 import '../services/time_service.dart' as time_utils;
+import '../widgets/password_dialog.dart';
 import 'app_selection_screen.dart';
+import 'profile_screen.dart';
 import 'time_config_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -60,7 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         actions: [
           if (lockState.isLocked)
             Padding(
-              padding: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.only(right: 8),
               child: Center(
                 child: Row(
                   children: [
@@ -78,6 +81,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: 'Profile & Settings',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -88,15 +99,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             // Status Card - ONLY the toggle
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Enforcement Status',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -104,7 +115,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Enabled'),
+                              Text(
+                                rules.isEnforcementEnabled
+                                    ? 'Apps will be blocked during restriction hours'
+                                    : 'Apps will not be blocked',
+                                style: const TextStyle(fontSize: 13),
+                              ),
                               if (!canModify)
                                 Text(
                                   'Cannot change during restriction',
@@ -121,6 +137,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           onChanged: canModify
                               ? (value) async {
                                   try {
+                                    // Turning OFF requires password verification
+                                    if (!value) {
+                                      final passwordService =
+                                          ref.read(passwordServiceProvider);
+                                      if (!context.mounted) return;
+                                      final authorized =
+                                          await PasswordDialog.showVerify(
+                                              context, passwordService);
+                                      if (!authorized || !context.mounted) return;
+                                    }
+
                                     // If trying to enable, check accessibility permission first
                                     if (value) {
                                       // Check accessibility status

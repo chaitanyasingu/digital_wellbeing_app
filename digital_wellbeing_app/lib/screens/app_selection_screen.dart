@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/apps_provider.dart';
+import '../providers/password_provider.dart';
 import '../providers/rules_provider.dart';
 import '../providers/settings_lock_provider.dart';
 import '../providers/enforcement_provider.dart';
 import '../models/restriction_rules.dart';
+import '../widgets/password_dialog.dart';
 
 class AppSelectionScreen extends ConsumerStatefulWidget {
   const AppSelectionScreen({super.key});
@@ -64,20 +66,31 @@ class _AppSelectionScreenState extends ConsumerState<AppSelectionScreen> {
                 : () async {
                     try {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Syncing apps...')),
+                        const SnackBar(
+                          content: Text('Syncing apps...'),
+                          duration: Duration(seconds: 30),
+                        ),
                       );
                       final result = await ref
                           .read(paginatedAppsProvider.notifier)
                           .syncWithDevice();
                       if (context.mounted) {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(result.toString())),
+                          SnackBar(
+                            content: Text(result.toString()),
+                            duration: const Duration(seconds: 3),
+                          ),
                         );
                       }
                     } catch (e) {
                       if (context.mounted) {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Sync failed: $e')),
+                          SnackBar(
+                            content: Text('Sync failed: $e'),
+                            duration: const Duration(seconds: 3),
+                          ),
                         );
                       }
                     }
@@ -92,6 +105,15 @@ class _AppSelectionScreenState extends ConsumerState<AppSelectionScreen> {
                   ? null
                   : () async {
                       if (!context.mounted) return;
+
+                      // Require password before saving
+                      final passwordService = ref.read(passwordServiceProvider);
+                      final hasPassword = await passwordService.hasPassword();
+                      if (!context.mounted) return;
+                      final authorized = hasPassword
+                          ? await PasswordDialog.showVerify(context, passwordService)
+                          : await PasswordDialog.showSetup(context, passwordService);
+                      if (!authorized || !context.mounted) return;
                       
                       try {
                         final newAppsList = selectedApps.toList();
@@ -177,6 +199,49 @@ class _AppSelectionScreenState extends ConsumerState<AppSelectionScreen> {
       ),
       body: Column(
         children: [
+          // Guidance banner – always visible
+          Container(
+            padding: const EdgeInsets.all(14),
+            margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6B4FA0).withAlpha(18),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFF6B4FA0).withAlpha(60),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.check_circle_outline,
+                        color: Color(0xFF6B4FA0), size: 18),
+                    SizedBox(width: 6),
+                    Text(
+                      'Which apps should stay allowed?',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4A3570),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Select only the apps you genuinely need during the '
+                  'restriction period — such as phone calls, maps, or banking. '
+                  'Apps you leave unselected will be blocked when enforcement is active.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
           // Lock status banner
           if (lockState.isLocked)
             Container(
@@ -204,36 +269,7 @@ class _AppSelectionScreenState extends ConsumerState<AppSelectionScreen> {
                 ],
               ),
             ),
-          // Database info banner
-          if (appsState.isInitialized && appsState.totalCount > 0)
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: Colors.green.shade700,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${appsState.totalCount} apps in database. Tap sync button to update from device.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.green.shade700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
@@ -253,9 +289,17 @@ class _AppSelectionScreenState extends ConsumerState<AppSelectionScreen> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              '${selectedApps.length} apps selected',
-              style: Theme.of(context).textTheme.titleSmall,
+            child: Row(
+              children: [
+                Icon(Icons.apps, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 6),
+                Text(
+                  '${selectedApps.length} app${selectedApps.length == 1 ? '' : 's'} selected as always-allowed',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Colors.grey.shade700,
+                      ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),

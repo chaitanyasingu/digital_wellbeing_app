@@ -49,6 +49,12 @@ dependencies:
   # Time formatting and utilities
   intl: ^0.20.2
   
+  # Password hashing
+  crypto: ^3.0.6
+
+  # Ads
+  google_mobile_ads: ^5.3.0
+
   # JSON serialization
   json_annotation: ^4.9.0
 

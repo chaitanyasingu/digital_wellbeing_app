@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/password_provider.dart';
 import '../providers/rules_provider.dart';
 import '../providers/settings_lock_provider.dart';
 import '../providers/enforcement_provider.dart';
+import '../widgets/password_dialog.dart';
 
 class TimeConfigScreen extends ConsumerStatefulWidget {
   const TimeConfigScreen({super.key});
@@ -48,6 +50,15 @@ class _TimeConfigScreenState extends ConsumerState<TimeConfigScreen> {
                   ? null
                   : () async {
                       if (!context.mounted) return;
+
+                      // Require password before saving
+                      final passwordService = ref.read(passwordServiceProvider);
+                      final hasPassword = await passwordService.hasPassword();
+                      if (!context.mounted) return;
+                      final authorized = hasPassword
+                          ? await PasswordDialog.showVerify(context, passwordService)
+                          : await PasswordDialog.showSetup(context, passwordService);
+                      if (!authorized || !context.mounted) return;
                       
                       try {
                         final newStartTime = _formatTime(startTime);
