@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/activity_idea.dart';
+import '../providers/activities_provider.dart';
 import '../providers/password_provider.dart';
+import 'activity_detail_screen.dart';
 import '../providers/rules_provider.dart';
 import '../providers/enforcement_provider.dart';
 import '../providers/settings_lock_provider.dart';
@@ -377,7 +380,202 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Activities Section
+            const _ActivitiesSection(),
+            const SizedBox(height: 8),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Activities Section ────────────────────────────────────────────────────────
+
+class _ActivitiesSection extends ConsumerWidget {
+  const _ActivitiesSection();
+
+  static const _categoryColors = <String, Color>{
+    'Mindfulness': Color(0xFF7B61FF),
+    'Fitness': Color(0xFF00C853),
+    'Health': Color(0xFF00B0FF),
+    'Learning': Color(0xFFFF6D00),
+    'Productivity': Color(0xFF455A64),
+    'Social': Color(0xFFE91E63),
+    'Creativity': Color(0xFFFF8F00),
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activitiesAsync = ref.watch(activitiesProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              const Icon(Icons.lightbulb_outline, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Things to do during restriction',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.shuffle, size: 20),
+                tooltip: 'Shuffle activities',
+                onPressed: () =>
+                    ref.read(activitiesProvider.notifier).shuffle(),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        activitiesAsync.when(
+          loading: () => const SizedBox(
+            height: 140,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, __) => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Could not load activities.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  TextButton.icon(
+                    onPressed: () =>
+                        ref.read(activitiesProvider.notifier).shuffle(),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          data: (activities) => SizedBox(
+            height: 148,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              itemCount: activities.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final activity = activities[index];
+                final color = _categoryColors[activity.category] ??
+                    Theme.of(context).colorScheme.primary;
+                return _ActivityCard(activity: activity, accentColor: color);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActivityCard extends StatelessWidget {
+  const _ActivityCard({
+    required this.activity,
+    required this.accentColor,
+  });
+
+  final ActivityIdea activity;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 158,
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        clipBehavior: Clip.hardEdge,
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ActivityDetailScreen(activity: activity),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(activity.emoji, style: const TextStyle(fontSize: 26)),
+                    const Spacer(),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: accentColor.withAlpha(30),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${activity.durationMinutes} min',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  activity.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Expanded(
+                  child: Text(
+                    activity.description,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: accentColor.withAlpha(20),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    activity.category,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
