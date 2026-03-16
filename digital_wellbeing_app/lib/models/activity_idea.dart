@@ -8,6 +8,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '🫁',
     category: 'Mindfulness',
     durationMinutes: 5,
+    isTimerBased: true,
     stepsRaw:
         'Sit upright in a chair or on the floor with your spine straight\n'
         'Exhale fully through your mouth to empty your lungs\n'
@@ -54,6 +55,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '🧘',
     category: 'Mindfulness',
     durationMinutes: 10,
+    isTimerBased: true,
     stepsRaw:
         'Find a quiet spot — sit on a chair, cushion or floor with your back straight\n'
         'Set a gentle timer for 10 minutes so you are not watching the clock\n'
@@ -143,6 +145,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '🤸',
     category: 'Fitness',
     durationMinutes: 5,
+    isTimerBased: true,
     stepsRaw:
         'Stand or sit tall and take 3 deep breaths to begin\n'
         'Neck: slowly tilt your right ear to your right shoulder, hold 20 s, repeat left\n'
@@ -188,6 +191,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '💪',
     category: 'Fitness',
     durationMinutes: 3,
+    isTimerBased: true,
     stepsRaw:
         'Place your hands on the floor slightly wider than shoulder-width\n'
         'Extend your legs behind you — balance on hands and toes (or knees for modified)\n'
@@ -299,6 +303,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '🧘',
     category: 'Fitness',
     durationMinutes: 5,
+    isTimerBased: true,
     stepsRaw:
         'Stand barefoot on a mat or carpet and take 5 deep breaths\n'
         'Cat-Cow (1 min): on hands and knees, inhale to arch (cow), exhale to round (cat), repeat 8x\n'
@@ -365,6 +370,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '🏃',
     category: 'Fitness',
     durationMinutes: 3,
+    isTimerBased: true,
     stepsRaw:
         'Stand with feet together and arms at your sides\n'
         'Jump and simultaneously spread your feet wider than shoulder-width\n'
@@ -409,6 +415,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '👂',
     category: 'Mindfulness',
     durationMinutes: 5,
+    isTimerBased: true,
     stepsRaw:
         'Sit or lie down comfortably\n'
         'Set a timer for 5 minutes\n'
@@ -431,6 +438,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '✍️',
     category: 'Mindfulness',
     durationMinutes: 10,
+    isTimerBased: true,
     stepsRaw:
         'Get a private notebook or open a secure notes app\n'
         'Set a timer for 10 minutes and write continuously — do not stop\n'
@@ -453,6 +461,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '🏋️',
     category: 'Fitness',
     durationMinutes: 3,
+    isTimerBased: true,
     stepsRaw:
         'Stand with feet shoulder-width apart, toes turned out slightly\n'
         'Hold arms straight out in front or cross them at your chest\n'
@@ -475,6 +484,7 @@ const List<ActivityIdea> kAllActivities = [
     emoji: '🌟',
     category: 'Mindfulness',
     durationMinutes: 5,
+    isTimerBased: true,
     stepsRaw:
         'Sit quietly and take 3 slow breaths to shift out of autopilot\n'
         'Ask yourself: "What went well today?" — give yourself 60 seconds to scan the day\n'
@@ -505,6 +515,9 @@ class ActivityIdea {
   final String stepsRaw;
   /// Newline-separated benefit lines stored as a single text column.
   final String benefitsRaw;
+  /// When true the detail screen shows a countdown timer ("Start Activity").
+  /// When false it shows a simple "Mark as Done" button.
+  final bool isTimerBased;
 
   const ActivityIdea({
     this.id,
@@ -515,6 +528,7 @@ class ActivityIdea {
     required this.durationMinutes,
     this.stepsRaw = '',
     this.benefitsRaw = '',
+    this.isTimerBased = false,
   });
 
   List<String> get steps =>

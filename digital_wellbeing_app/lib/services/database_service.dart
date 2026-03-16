@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/app_info.dart';
 import '../models/activity_idea.dart';
+import '../models/activity_log.dart';
 
 /// SQLite database service for storing and managing installed apps
 class DatabaseService {
@@ -22,7 +23,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -49,6 +50,23 @@ class DatabaseService {
 
     await _createActivitiesTable(db);
     await _seedActivities(db);
+    await _createActivityLogsTable(db);
+  }
+
+  Future<void> _createActivityLogsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        activity_title TEXT NOT NULL,
+        activity_emoji TEXT NOT NULL,
+        activity_category TEXT NOT NULL,
+        completed_at INTEGER NOT NULL,
+        duration_seconds INTEGER NOT NULL DEFAULT 0,
+        was_timer_based INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_log_date ON activity_logs(completed_at)');
   }
 
   Future<void> _createActivitiesTable(Database db) async {
@@ -83,6 +101,9 @@ class DatabaseService {
       // Wipe stale rows and re-seed with full enriched data
       await db.delete('activities');
       await _seedActivities(db);
+    }
+    if (oldVersion < 4) {
+      await _createActivityLogsTable(db);
     }
   }
 
@@ -196,6 +217,30 @@ class DatabaseService {
   Future<void> seedCommonApps() async {
     final commonApps = _getCommonAndroidApps();
     await upsertApps(commonApps);
+  }
+
+  // ── Activity Logs ───────────────────────────────────────────────────────────
+
+  /// Persist a completed activity session.
+  Future<void> insertActivityLog(ActivityLog log) async {
+    final db = await database;
+    await db.insert('activity_logs', log.toMap());
+  }
+
+  /// Return all logged activity sessions, newest first.
+  Future<List<ActivityLog>> getActivityLogs({int limit = 200}) async {
+    final db = await database;
+    try {
+      final maps = await db.query(
+        'activity_logs',
+        orderBy: 'completed_at DESC',
+        limit: limit,
+      );
+      return maps.map(ActivityLog.fromMap).toList();
+    } catch (_) {
+      await _createActivityLogsTable(db);
+      return [];
+    }
   }
 
   /// Convert database map to AppInfo object

@@ -4,6 +4,7 @@ import '../models/activity_idea.dart';
 import '../providers/activities_provider.dart';
 import '../providers/password_provider.dart';
 import 'activity_detail_screen.dart';
+import 'activity_history_screen.dart';
 import '../providers/rules_provider.dart';
 import '../providers/enforcement_provider.dart';
 import '../providers/settings_lock_provider.dart';
@@ -434,6 +435,16 @@ class _ActivitiesSection extends ConsumerWidget {
                 tooltip: 'Shuffle activities',
                 onPressed: () =>
                     ref.read(activitiesProvider.notifier).shuffle(),
+              ),
+              IconButton(
+                icon: const Icon(Icons.history_rounded, size: 20),
+                tooltip: 'Activity history',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ActivityHistoryScreen(),
+                  ),
+                ),
               ),
             ],
           ),
