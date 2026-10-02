@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/apps_repository.dart';
 import 'onboarding_screen.dart';
 import 'home_screen.dart';
 
@@ -50,6 +51,9 @@ class _SplashScreenState extends State<SplashScreen>
     // Wait for animation to complete
     await Future.delayed(const Duration(milliseconds: 2500));
 
+    // Sync app list in the background if the local DB is more than 24 hours stale.
+    await _syncAppsIfStale();
+
     // Check if user has seen onboarding
     final prefs = await SharedPreferences.getInstance();
     final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
@@ -66,6 +70,24 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const OnboardingScreen()),
       );
+    }
+  }
+
+  Future<void> _syncAppsIfStale() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastSync = prefs.getInt('last_app_sync_epoch') ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      const oneDayMs = 24 * 60 * 60 * 1000;
+
+      if (now - lastSync > oneDayMs) {
+        final repository = AppsRepository();
+        await repository.initialize();
+        await repository.syncInstalledApps();
+        await prefs.setInt('last_app_sync_epoch', now);
+      }
+    } catch (_) {
+      // Non-fatal: the existing DB continues to work if sync fails.
     }
   }
 

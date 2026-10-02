@@ -1,29 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:developer' as developer;
 import 'screens/splash_screen.dart';
-import 'services/background_job_service.dart';
 import 'services/tamper_detection_service.dart';
 import 'providers/tamper_detection_provider.dart';
 
 void main() async {
   // Initialize Flutter binding - required for plugins
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize background job service with error handling
-  // Never let background service errors crash the app
-  try {
-    await BackgroundJobService.initialize();
-    await BackgroundJobService.scheduleDailySync();
-  } catch (e, stackTrace) {
-    developer.log(
-      'Background service initialization failed (app continues)',
-      name: 'MainApp',
-      error: e,
-      stackTrace: stackTrace,
-    );
-    // App continues normally even if background service fails
-  }
 
   runApp(const ProviderScope(child: MyApp()));
 }

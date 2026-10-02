@@ -82,6 +82,18 @@ class EnforcementForegroundService : Service() {
     }
 
     private fun updateNotification() {
+        val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
+        val startTime = prefs.getString("start_time", "21:00") ?: "21:00"
+        val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
+
+        // Once the natural restriction window catches up, the tamper override is no longer needed.
+        if (prefs.getBoolean("clock_tamper_active", false) &&
+            TimeUtils.isCurrentTimeRestricted(startTime, endTime)
+        ) {
+            prefs.edit().putBoolean("clock_tamper_active", false).commit()
+            Log.d(TAG, "Clock tamper override cleared — natural restriction window is active")
+        }
+
         val notification = createNotification()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
@@ -130,7 +142,8 @@ class EnforcementForegroundService : Service() {
         val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
         val startTime = prefs.getString("start_time", "21:00") ?: "21:00"
         val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
-        val isInRestriction = isCurrentTimeRestricted(startTime, endTime)
+        val clockTamperActive = prefs.getBoolean("clock_tamper_active", false)
+        val isInRestriction = TimeUtils.isCurrentTimeRestricted(startTime, endTime) || clockTamperActive
 
         // Use different channel based on restriction status
         val channelId = if (isInRestriction) CHANNEL_ID_RESTRICTION else CHANNEL_ID_MONITORING
@@ -171,30 +184,4 @@ class EnforcementForegroundService : Service() {
             .build()
     }
 
-    private fun isCurrentTimeRestricted(startTime: String, endTime: String): Boolean {
-        try {
-            val timeFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-            val now = java.util.Calendar.getInstance()
-            val currentMinutes = now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE)
-            
-            val start = timeFormat.parse(startTime)
-            val startCal = java.util.Calendar.getInstance().apply { time = start!! }
-            val startMinutes = startCal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + startCal.get(java.util.Calendar.MINUTE)
-            
-            val end = timeFormat.parse(endTime)
-            val endCal = java.util.Calendar.getInstance().apply { time = end!! }
-            val endMinutes = endCal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + endCal.get(java.util.Calendar.MINUTE)
-            
-            // If start < end (e.g., 09:00 to 17:00)
-            if (startMinutes < endMinutes) {
-                return currentMinutes in startMinutes until endMinutes
-            }
-            
-            // If start > end (crosses midnight, e.g., 21:00 to 10:00)
-            return currentMinutes >= startMinutes || currentMinutes < endMinutes
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing time", e)
-            return false
-        }
-    }
 }

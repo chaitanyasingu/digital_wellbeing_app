@@ -13,8 +13,6 @@ import android.widget.Button
 import android.widget.TextView
 import android.graphics.PixelFormat
 import android.app.ActivityManager
-import java.text.SimpleDateFormat
-import java.util.*
 
 class AppBlockingService : AccessibilityService() {
 
@@ -100,8 +98,9 @@ class AppBlockingService : AccessibilityService() {
             val startTime = prefs.getString("start_time", "21:00") ?: "21:00"
             val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
             
-            val isRestricted = isCurrentTimeRestricted(startTime, endTime)
-            Log.d(TAG, "[RESTRICTION_CHECK] Restriction window: $startTime-$endTime, Currently restricted: $isRestricted")
+            val clockTamperActive = prefs.getBoolean("clock_tamper_active", false)
+            val isRestricted = TimeUtils.isCurrentTimeRestricted(startTime, endTime) || clockTamperActive
+            Log.d(TAG, "[RESTRICTION_CHECK] Restriction window: $startTime-$endTime, Currently restricted: $isRestricted (tamper override: $clockTamperActive)")
             
             if (!isRestricted) {
                 Log.d(TAG, "[RESTRICTION_CHECK] Not in restriction window, allowing $packageName")
@@ -425,42 +424,6 @@ class AppBlockingService : AccessibilityService() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "[OVERLAY] Error removing overlay: ${e.message}", e)
-        }
-    }
-
-    private fun isCurrentTimeRestricted(startTime: String, endTime: String): Boolean {
-        try {
-            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-            val now = Calendar.getInstance()
-            val currentMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-            
-            val start = timeFormat.parse(startTime)
-            val startCal = Calendar.getInstance().apply { time = start!! }
-            val startMinutes = startCal.get(Calendar.HOUR_OF_DAY) * 60 + startCal.get(Calendar.MINUTE)
-            
-            val end = timeFormat.parse(endTime)
-            val endCal = Calendar.getInstance().apply { time = end!! }
-            val endMinutes = endCal.get(Calendar.HOUR_OF_DAY) * 60 + endCal.get(Calendar.MINUTE)
-            
-            val currentTime = "${now.get(Calendar.HOUR_OF_DAY).toString().padStart(2, '0')}:${now.get(Calendar.MINUTE).toString().padStart(2, '0')}"
-            
-            Log.d(TAG, "Time check: Current=$currentTime ($currentMinutes min), Start=$startTime ($startMinutes min), End=$endTime ($endMinutes min)")
-            
-            val isRestricted: Boolean
-            // If start < end (e.g., 09:00 to 17:00)
-            if (startMinutes < endMinutes) {
-                isRestricted = currentMinutes in startMinutes until endMinutes
-                Log.d(TAG, "Same-day restriction: $currentMinutes in [$startMinutes, $endMinutes) = $isRestricted")
-            } else {
-                // If start > end (crosses midnight, e.g., 21:00 to 10:00)
-                isRestricted = currentMinutes >= startMinutes || currentMinutes < endMinutes
-                Log.d(TAG, "Overnight restriction: ($currentMinutes >= $startMinutes OR $currentMinutes < $endMinutes) = $isRestricted")
-            }
-            
-            return isRestricted
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing time", e)
-            return false
         }
     }
 
