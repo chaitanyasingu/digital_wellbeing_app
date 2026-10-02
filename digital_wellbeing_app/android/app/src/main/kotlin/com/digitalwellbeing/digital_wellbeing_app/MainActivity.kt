@@ -20,13 +20,16 @@ class MainActivity : FlutterActivity() {
     private val APP_CHANNEL = "digital_wellbeing/apps"
     private val ENFORCEMENT_CHANNEL = "digital_wellbeing/enforcement"
     private val NOTIFICATION_CHANNEL = "digital_wellbeing/notifications"
+    private val USAGE_STATS_CHANNEL = "digital_wellbeing/usage_stats"
     private val NOTIFICATION_PERMISSION_REQUEST = 1001
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var notificationPermissionResult: MethodChannel.Result? = null
+    private lateinit var usageStatsBridge: UsageStatsBridge
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        usageStatsBridge = UsageStatsBridge(this)
 
         // Apps channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_CHANNEL).setMethodCallHandler { call, result ->
@@ -138,6 +141,78 @@ class MainActivity : FlutterActivity() {
             }
         }
         
+        // Usage Stats channel (Phase 5)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, USAGE_STATS_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasPermission" -> result.success(usageStatsBridge.hasPermission())
+                "openSettings" -> {
+                    usageStatsBridge.openSettings(this)
+                    result.success(null)
+                }
+                "getUsageStats" -> {
+                    val startMs = (call.argument<Any>("startMs") as? Number)?.toLong() ?: 0L
+                    val endMs = (call.argument<Any>("endMs") as? Number)?.toLong() ?: System.currentTimeMillis()
+                    executor.execute {
+                        try {
+                            val stats = usageStatsBridge.getUsageStats(startMs, endMs)
+                            mainHandler.post { result.success(stats) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("ERROR", e.message, null) }
+                        }
+                    }
+                }
+                "getPickupCount" -> {
+                    val startMs = (call.argument<Any>("startMs") as? Number)?.toLong() ?: 0L
+                    val endMs = (call.argument<Any>("endMs") as? Number)?.toLong() ?: System.currentTimeMillis()
+                    executor.execute {
+                        try {
+                            val count = usageStatsBridge.getPickupCount(startMs, endMs)
+                            mainHandler.post { result.success(count) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("ERROR", e.message, null) }
+                        }
+                    }
+                }
+                "getFirstPickupTime" -> {
+                    val startMs = (call.argument<Any>("startMs") as? Number)?.toLong() ?: 0L
+                    val endMs = (call.argument<Any>("endMs") as? Number)?.toLong() ?: System.currentTimeMillis()
+                    executor.execute {
+                        try {
+                            val time = usageStatsBridge.getFirstPickupTime(startMs, endMs)
+                            mainHandler.post { result.success(time) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("ERROR", e.message, null) }
+                        }
+                    }
+                }
+                "getLastPickupTime" -> {
+                    val startMs = (call.argument<Any>("startMs") as? Number)?.toLong() ?: 0L
+                    val endMs = (call.argument<Any>("endMs") as? Number)?.toLong() ?: System.currentTimeMillis()
+                    executor.execute {
+                        try {
+                            val time = usageStatsBridge.getLastPickupTime(startMs, endMs)
+                            mainHandler.post { result.success(time) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("ERROR", e.message, null) }
+                        }
+                    }
+                }
+                "scheduleSmartNotification" -> {
+                    val type = call.argument<String>("type") ?: return@setMethodCallHandler result.error("INVALID", "type required", null)
+                    val hour = call.argument<Int>("hour") ?: 8
+                    val minute = call.argument<Int>("minute") ?: 0
+                    SmartNotificationReceiver.schedule(this, type, hour, minute)
+                    result.success(null)
+                }
+                "cancelSmartNotification" -> {
+                    val type = call.argument<String>("type") ?: return@setMethodCallHandler result.error("INVALID", "type required", null)
+                    SmartNotificationReceiver.cancel(this, type)
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         // Notification channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

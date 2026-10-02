@@ -22,7 +22,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
 
             if (enforcementEnabled) {
                 Log.d(TAG, "Restarting enforcement after reboot")
-                
+
                 // Start foreground service
                 val serviceIntent = Intent(context, EnforcementForegroundService::class.java)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -31,6 +31,10 @@ class BootCompletedReceiver : BroadcastReceiver() {
                     context.startService(serviceIntent)
                 }
             }
+
+            // Reschedule smart notifications (AlarmManager alarms don't survive reboot)
+            SmartNotificationReceiver.rescheduleFromPrefs(context)
+            Log.d(TAG, "Rescheduled smart notifications after reboot")
         }
     }
 }

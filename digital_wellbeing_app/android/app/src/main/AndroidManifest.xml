@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     
     <!-- Permissions -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
@@ -11,6 +12,7 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     
     <application
         android:label="Digital Mindfulness"
@@ -92,6 +94,12 @@
         <!-- Restriction Notification Receiver (Phase 3) -->
         <receiver
             android:name=".RestrictionNotificationReceiver"
+            android:exported="false"
+            android:enabled="true" />
+
+        <!-- Smart Notification Receiver (Phase 5) -->
+        <receiver
+            android:name=".SmartNotificationReceiver"
             android:exported="false"
             android:enabled="true" />
         

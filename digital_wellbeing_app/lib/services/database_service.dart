@@ -21,7 +21,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -45,11 +45,52 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_app_name ON apps(app_name)');
     await db.execute('CREATE INDEX idx_is_system ON apps(is_system_app)');
     await db.execute('CREATE INDEX idx_installed ON apps(is_installed)');
+
+    await _createPhase5Tables(db);
+  }
+
+  Future<void> _createPhase5Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS goals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        goal_type TEXT NOT NULL,
+        target_ms INTEGER NOT NULL DEFAULT 0,
+        category TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS streaks (
+        goal_id INTEGER PRIMARY KEY,
+        current_streak INTEGER NOT NULL DEFAULT 0,
+        longest_streak INTEGER NOT NULL DEFAULT 0,
+        last_success_date TEXT,
+        freeze_used INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sleep_schedules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        bedtime TEXT NOT NULL,
+        wake_time TEXT NOT NULL,
+        grace_period_mins INTEGER NOT NULL DEFAULT 0,
+        blue_light_reminder INTEGER NOT NULL DEFAULT 0,
+        blue_light_time TEXT NOT NULL DEFAULT '20:00',
+        is_active INTEGER NOT NULL DEFAULT 0,
+        days_of_week TEXT NOT NULL DEFAULT '1111111'
+      )
+    ''');
   }
 
   /// Handle database schema upgrades
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Future schema migrations will go here
+    if (oldVersion < 2) {
+      await _createPhase5Tables(db);
+    }
   }
 
   /// Insert or update an app in the database
@@ -345,6 +386,20 @@ class DatabaseService {
         isSystemApp: false,
       ),
     ];
+  }
+
+  /// Look up display names for a list of package names
+  Future<Map<String, String>> getAppNames(List<String> packageNames) async {
+    if (packageNames.isEmpty) return {};
+    final db = await database;
+    final placeholders = packageNames.map((_) => '?').join(',');
+    final rows = await db.rawQuery(
+      'SELECT package_name, app_name FROM apps WHERE package_name IN ($placeholders)',
+      packageNames,
+    );
+    return Map.fromEntries(
+      rows.map((r) => MapEntry(r['package_name'] as String, r['app_name'] as String)),
+    );
   }
 
   /// Close database connection
