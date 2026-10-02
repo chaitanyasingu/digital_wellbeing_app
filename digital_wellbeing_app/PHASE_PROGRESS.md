@@ -1,12 +1,25 @@
 # Digital Mindfulness — Phase Implementation Progress
 
-Last updated: 2026-10-02
+Last updated: 2026-10-02 (after Phase 8 completion)
 
 ## Status Legend
 - ✅ Complete
 - 🔄 In Progress
-- ⏳ Planned
-- ❌ Skipped / Deferred
+- ⏳ Planned (not yet started)
+- ❌ Deferred (consciously postponed with documented reason)
+
+## Overall Progress
+| Phase | Title | Status |
+|-------|-------|--------|
+| 1 | Core Foundation | ✅ |
+| 2 | Restriction Windows & Settings Lock | ✅ |
+| 3 | Notifications & Alerts | ✅ |
+| 4 | Anti-Tamper & Persistence | ✅ |
+| 5 | Analytics, Goals, Sleep & Smart Notifications | ✅ |
+| 6 | Focus Mode, Mindfulness & Activity Nudges | ✅ |
+| 7 | Gamification & Family Mode | ✅ |
+| 8 | Context-Aware Rules & Hardmode | ✅ |
+| 9 | Cloud Sync & Accountability | ❌ Deferred (privacy risk) |
 
 ---
 
@@ -290,16 +303,35 @@ Last updated: 2026-10-02
 
 ---
 
-## Phase 9 — Cloud Sync & Accountability ⏳
+## Phase 9 — Cloud Sync & Accountability ❌ DEFERRED
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Node.js backend | ⏳ | Auth, user accounts |
-| Multi-device sync | ⏳ | Settings + streak sync |
-| Accountability partners | ⏳ | Share weekly report with friend |
-| Export data (CSV/PDF) | ⏳ | Analytics + mood history export |
+> **Why deferred:** This phase involves storing user data (screen-time stats, mood journals,
+> focus sessions, sleep schedules) on a remote server. That introduces meaningful privacy and
+> security risk — data-in-transit exposure, server-side breaches, GDPR/CCPA compliance
+> requirements, and user trust concerns. We will revisit this once the local-only experience
+> is mature and a proper threat model + privacy policy are in place.
 
-Estimated effort: 6–8 weeks
+### Planned Features (when resumed)
+
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| User accounts + authentication | High | OAuth2 / magic-link, no plaintext passwords |
+| End-to-end encrypted sync | High | Encrypt before upload; server stores ciphertext only |
+| Multi-device settings sync | Medium | Rules, whitelists, restriction windows |
+| Streak / XP sync | Medium | Prevent loss when phone changes |
+| Accountability partners | Medium | Share anonymised weekly report with a trusted contact |
+| Export data (CSV / PDF) | Low | Local export first; cloud export later |
+| Node.js / serverless backend | High | Needed for accounts + sync |
+
+### Pre-conditions before starting Phase 9
+
+- [ ] Write a Privacy Policy covering what is collected and why
+- [ ] Decide on encryption scheme (e.g. AES-256 key derived from user PIN, never sent to server)
+- [ ] Choose backend hosting with data-residency guarantees
+- [ ] Add opt-in consent screen in onboarding
+- [ ] Implement local CSV/PDF export as a zero-risk alternative first
+
+Estimated effort: 6–8 weeks (after pre-conditions are met)
 
 ---
 
