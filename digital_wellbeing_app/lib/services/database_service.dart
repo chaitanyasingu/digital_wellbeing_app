@@ -21,7 +21,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -49,6 +49,7 @@ class DatabaseService {
     await _createPhase5Tables(db);
     await _createPhase6Tables(db);
     await _createPhase7Tables(db);
+    await _createPhase8Tables(db);
   }
 
   Future<void> _createPhase5Tables(Database db) async {
@@ -166,6 +167,44 @@ class DatabaseService {
     if (oldVersion < 4) {
       await _createPhase7Tables(db);
     }
+    if (oldVersion < 5) {
+      await _createPhase8Tables(db);
+    }
+  }
+
+  Future<void> _createPhase8Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS context_wifi_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        ssid TEXT NOT NULL,
+        effect TEXT NOT NULL DEFAULT 'relaxed',
+        is_active INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS context_location_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        lat REAL NOT NULL,
+        lng REAL NOT NULL,
+        radius_meters INTEGER NOT NULL DEFAULT 200,
+        effect TEXT NOT NULL DEFAULT 'strict',
+        is_active INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS commitment_contracts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        start_time INTEGER NOT NULL,
+        end_time INTEGER NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL
+      )
+    ''');
   }
 
   /// Insert or update an app in the database
@@ -619,6 +658,74 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> getAllFamilyProfiles() async {
     final db = await database;
     return db.query('family_profiles', orderBy: 'created_at ASC');
+  }
+
+  // ── Context WiFi Rules ────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getContextWifiRules() async {
+    final db = await database;
+    return db.query('context_wifi_rules', orderBy: 'id ASC');
+  }
+
+  Future<int> insertContextWifiRule(Map<String, dynamic> row) async {
+    final db = await database;
+    return db.insert('context_wifi_rules', row);
+  }
+
+  Future<void> updateContextWifiRule(int id, Map<String, dynamic> values) async {
+    final db = await database;
+    await db.update('context_wifi_rules', values,
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteContextWifiRule(int id) async {
+    final db = await database;
+    await db.delete('context_wifi_rules', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Context Location Rules ────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getContextLocationRules() async {
+    final db = await database;
+    return db.query('context_location_rules', orderBy: 'id ASC');
+  }
+
+  Future<int> insertContextLocationRule(Map<String, dynamic> row) async {
+    final db = await database;
+    return db.insert('context_location_rules', row);
+  }
+
+  Future<void> updateContextLocationRule(
+      int id, Map<String, dynamic> values) async {
+    final db = await database;
+    await db.update('context_location_rules', values,
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteContextLocationRule(int id) async {
+    final db = await database;
+    await db.delete('context_location_rules',
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ── Commitment Contracts ──────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getCommitmentContracts() async {
+    final db = await database;
+    return db.query('commitment_contracts',
+        where: 'is_active = 1', orderBy: 'start_time ASC');
+  }
+
+  Future<int> insertCommitmentContract(Map<String, dynamic> row) async {
+    final db = await database;
+    return db.insert('commitment_contracts', row);
+  }
+
+  Future<void> updateCommitmentContract(
+      int id, Map<String, dynamic> values) async {
+    final db = await database;
+    await db.update('commitment_contracts', values,
+        where: 'id = ?', whereArgs: [id]);
   }
 
   /// Close database connection

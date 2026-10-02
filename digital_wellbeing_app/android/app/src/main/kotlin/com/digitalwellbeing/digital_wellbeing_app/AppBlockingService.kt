@@ -99,11 +99,21 @@ class AppBlockingService : AccessibilityService() {
             val endTime = prefs.getString("end_time", "10:00") ?: "10:00"
             
             val clockTamperActive = prefs.getBoolean("clock_tamper_active", false)
-            val isRestricted = TimeUtils.isCurrentTimeRestricted(startTime, endTime) || clockTamperActive
-            Log.d(TAG, "[RESTRICTION_CHECK] Restriction window: $startTime-$endTime, Currently restricted: $isRestricted (tamper override: $clockTamperActive)")
-            
+            val locationStrictActive = prefs.getBoolean("location_strict_active", false)
+            val contractActive = prefs.getBoolean("contract_active", false)
+            val isRestricted = TimeUtils.isCurrentTimeRestricted(startTime, endTime)
+                    || clockTamperActive || locationStrictActive || contractActive
+            Log.d(TAG, "[RESTRICTION_CHECK] Restriction window: $startTime-$endTime, Currently restricted: $isRestricted (tamper: $clockTamperActive, locStrict: $locationStrictActive, contract: $contractActive)")
+
             if (!isRestricted) {
                 Log.d(TAG, "[RESTRICTION_CHECK] Not in restriction window, allowing $packageName")
+                return
+            }
+
+            // WiFi relaxed: home network detected — bypass blocking (unless contract is active)
+            val wifiRelaxedActive = prefs.getBoolean("wifi_relaxed_active", false)
+            if (wifiRelaxedActive && !contractActive) {
+                Log.d(TAG, "[CONTEXT] WiFi relaxed mode active — allowing $packageName")
                 return
             }
 

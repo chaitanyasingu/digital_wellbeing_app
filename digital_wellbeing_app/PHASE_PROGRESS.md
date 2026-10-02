@@ -206,17 +206,87 @@ Last updated: 2026-10-02
 
 ---
 
-## Phase 8 — Context-Aware Rules & Hardmode ⏳
+## Phase 8 — Context-Aware Rules & Hardmode ✅
 
-| Feature | Status | Notes |
+### 8a — WiFi SSID Triggers
+| Feature | Status | Files |
 |---------|--------|-------|
-| Location-based rules (GPS geofencing) | ⏳ | "At work" = stricter rules |
-| WiFi SSID triggers | ⏳ | Home WiFi = relax rules |
-| Device Admin API (no-uninstall) | ⏳ | Requires BIND_DEVICE_ADMIN |
-| Commitment contracts | ⏳ | Timed lock-out with delay to disable |
-| Hardmode (PIN required to disable) | ⏳ | Uses existing settings-lock pattern |
+| WiFi SSID reading via WifiManager | ✅ | `WifiBridge.kt` |
+| WiFi MethodChannel | ✅ | `MainActivity.kt` |
+| ACCESS_WIFI_STATE + ACCESS_FINE_LOCATION permissions | ✅ | `AndroidManifest.xml` |
+| WiFi rules CRUD (SQLite `context_wifi_rules`) | ✅ | `context_rules_service.dart`, `database_service.dart` (v5) |
+| WiFi relaxed flag → `wifi_relaxed_active` SharedPrefs | ✅ | `context_rules_provider.dart`, `enforcement_service.dart` |
+| `AppBlockingService` reads `wifi_relaxed_active` | ✅ | `AppBlockingService.kt` |
+| WiFi Rules UI (tab in ContextRulesScreen) | ✅ | `context_rules_screen.dart` |
 
-Estimated effort: 4–5 weeks
+### 8b — GPS Location Geofencing
+| Feature | Status | Files |
+|---------|--------|-------|
+| LocationManager bridge (GPS/network/passive) | ✅ | `LocationBridge.kt` |
+| Location MethodChannel | ✅ | `MainActivity.kt` |
+| ACCESS_FINE_LOCATION + ACCESS_BACKGROUND_LOCATION permissions | ✅ | `AndroidManifest.xml` |
+| Pure-Dart Haversine distance calculation | ✅ | `location_service.dart` (LocationCoords) |
+| Location rules CRUD (SQLite `context_location_rules`) | ✅ | `context_rules_service.dart`, `database_service.dart` (v5) |
+| Location strict flag → `location_strict_active` SharedPrefs | ✅ | `context_rules_provider.dart` |
+| `AppBlockingService` reads `location_strict_active` | ✅ | `AppBlockingService.kt` |
+| Location Rules UI (tab in ContextRulesScreen) | ✅ | `context_rules_screen.dart` |
+
+### 8c — Device Admin (Uninstall Protection)
+| Feature | Status | Files |
+|---------|--------|-------|
+| `AppDeviceAdminReceiver` subclass | ✅ | `AppDeviceAdminReceiver.kt` |
+| `device_admin_config.xml` | ✅ | `res/xml/device_admin_config.xml` |
+| BIND_DEVICE_ADMIN receiver in manifest | ✅ | `AndroidManifest.xml` |
+| Device Admin MethodChannel | ✅ | `DeviceAdminBridge.kt`, `MainActivity.kt` |
+| Device Admin activate/deactivate UI | ✅ | `hardmode_screen.dart` (_DeviceAdminCard) |
+
+### 8d — Hardmode PIN
+| Feature | Status | Files |
+|---------|--------|-------|
+| PIN storage (base64 obfuscation, no extra packages) | ✅ | `hardmode_service.dart` |
+| Enable / disable hardmode with PIN | ✅ | `hardmode_provider.dart` |
+| PIN dialog on enforcement toggle | ✅ | `home_screen.dart` (_showPinDialog) |
+| `hardmode_enabled` flag → SharedPrefs | ✅ | `hardmode_provider.dart`, `enforcement_service.dart` |
+| Hardmode UI card | ✅ | `hardmode_screen.dart` (_HardmodePinCard) |
+
+### 8e — Commitment Contracts
+| Feature | Status | Files |
+|---------|--------|-------|
+| `CommitmentContract` model + SQLite table | ✅ | `hardmode_service.dart`, `database_service.dart` (v5) |
+| Active contract detection (isCurrentlyActive) | ✅ | `hardmode_service.dart` |
+| `contract_active` flag → `AppBlockingService` (overrides WiFi relaxed) | ✅ | `AppBlockingService.kt` |
+| Settings lock integration (contract also locks settings) | ✅ | `settings_lock_provider.dart` |
+| Contracts UI with time picker | ✅ | `hardmode_screen.dart` (_CommitmentContractsCard) |
+
+### New Files (Phase 8)
+| File | Type |
+|------|------|
+| `android/.../WifiBridge.kt` | Kotlin bridge |
+| `android/.../LocationBridge.kt` | Kotlin bridge |
+| `android/.../AppDeviceAdminReceiver.kt` | Kotlin (DeviceAdminReceiver) |
+| `android/.../DeviceAdminBridge.kt` | Kotlin bridge |
+| `android/res/xml/device_admin_config.xml` | XML config |
+| `lib/services/wifi_service.dart` | Dart service |
+| `lib/services/location_service.dart` | Dart service |
+| `lib/services/device_admin_service.dart` | Dart service |
+| `lib/services/context_rules_service.dart` | Dart service |
+| `lib/services/hardmode_service.dart` | Dart service |
+| `lib/providers/context_rules_provider.dart` | Riverpod provider |
+| `lib/providers/hardmode_provider.dart` | Riverpod provider |
+| `lib/providers/device_admin_provider.dart` | Riverpod provider |
+| `lib/screens/context_rules_screen.dart` | Flutter screen |
+| `lib/screens/hardmode_screen.dart` | Flutter screen |
+
+### Modified Files (Phase 8)
+| File | Change |
+|------|--------|
+| `android/.../AppBlockingService.kt` | Context flags (WiFi relaxed, location strict, contract) |
+| `android/.../AndroidManifest.xml` | WiFi/location/admin permissions + DeviceAdminReceiver |
+| `android/.../MainActivity.kt` | 3 new channels + updateContextFlags + onActivityResult |
+| `lib/services/database_service.dart` | v5 + Phase 8 tables + CRUD |
+| `lib/services/enforcement_service.dart` | `updateContextFlags` method |
+| `lib/providers/settings_lock_provider.dart` | Contract-active lock integration |
+| `lib/screens/home_screen.dart` | Context Rules & Hardmode links + PIN guard |
 
 ---
 

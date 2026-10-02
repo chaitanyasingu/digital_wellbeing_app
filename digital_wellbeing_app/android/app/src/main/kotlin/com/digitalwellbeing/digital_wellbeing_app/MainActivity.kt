@@ -1,5 +1,6 @@
 package com.digitalwellbeing.digital_wellbeing_app
 
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -22,17 +23,30 @@ class MainActivity : FlutterActivity() {
     private val NOTIFICATION_CHANNEL = "digital_wellbeing/notifications"
     private val USAGE_STATS_CHANNEL = "digital_wellbeing/usage_stats"
     private val STEPS_CHANNEL = "digital_wellbeing/steps"
+    private val WIFI_CHANNEL = "digital_wellbeing/wifi"
+    private val LOCATION_CHANNEL = "digital_wellbeing/location"
+    private val DEVICE_ADMIN_CHANNEL = "digital_wellbeing/device_admin"
     private val NOTIFICATION_PERMISSION_REQUEST = 1001
+    private val DEVICE_ADMIN_REQUEST = 1002
+    private val LOCATION_PERMISSION_REQUEST = 1003
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var notificationPermissionResult: MethodChannel.Result? = null
+    private var deviceAdminResult: MethodChannel.Result? = null
+    private var locationPermissionResult: MethodChannel.Result? = null
     private lateinit var usageStatsBridge: UsageStatsBridge
     private lateinit var stepCounterBridge: StepCounterBridge
+    private lateinit var wifiBridge: WifiBridge
+    private lateinit var locationBridge: LocationBridge
+    private lateinit var deviceAdminBridge: DeviceAdminBridge
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         usageStatsBridge = UsageStatsBridge(this)
         stepCounterBridge = StepCounterBridge(this)
+        wifiBridge = WifiBridge(this)
+        locationBridge = LocationBridge(this)
+        deviceAdminBridge = DeviceAdminBridge(this)
 
         // Apps channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_CHANNEL).setMethodCallHandler { call, result ->
@@ -140,10 +154,82 @@ class MainActivity : FlutterActivity() {
                     startActivity(intent)
                     result.success(null)
                 }
+                "updateContextFlags" -> {
+                    val wifiRelaxed = call.argument<Boolean>("wifiRelaxed") ?: false
+                    val locationStrict = call.argument<Boolean>("locationStrict") ?: false
+                    val contractActive = call.argument<Boolean>("contractActive") ?: false
+                    val hardmodeEnabled = call.argument<Boolean>("hardmodeEnabled") ?: false
+                    val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
+                    prefs.edit().apply {
+                        putBoolean("wifi_relaxed_active", wifiRelaxed)
+                        putBoolean("location_strict_active", locationStrict)
+                        putBoolean("contract_active", contractActive)
+                        putBoolean("hardmode_enabled", hardmodeEnabled)
+                        commit()
+                    }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
-        
+
+        // WiFi channel (Phase 8)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WIFI_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasPermission" -> result.success(wifiBridge.hasPermission())
+                "getCurrentSsid" -> result.success(wifiBridge.getCurrentSsid())
+                "isWifiEnabled" -> result.success(wifiBridge.isWifiEnabled())
+                else -> result.notImplemented()
+            }
+        }
+
+        // Location channel (Phase 8)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LOCATION_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasPermission" -> result.success(locationBridge.hasPermission())
+                "hasBackgroundPermission" -> result.success(locationBridge.hasBackgroundPermission())
+                "requestPermission" -> {
+                    locationPermissionResult = result
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ),
+                        LOCATION_PERMISSION_REQUEST
+                    )
+                }
+                "getLastKnownLocation" -> {
+                    executor.execute {
+                        try {
+                            val loc = locationBridge.getLastKnownLocation()
+                            mainHandler.post { result.success(loc) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("ERROR", e.message, null) }
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Device Admin channel (Phase 8)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_ADMIN_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isAdminActive" -> result.success(deviceAdminBridge.isAdminActive())
+                "activateAdmin" -> {
+                    deviceAdminResult = result
+                    val intent = deviceAdminBridge.buildActivateIntent()
+                    startActivityForResult(intent, DEVICE_ADMIN_REQUEST)
+                }
+                "deactivateAdmin" -> {
+                    deviceAdminBridge.deactivate()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         // Usage Stats channel (Phase 5)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, USAGE_STATS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -303,7 +389,13 @@ class MainActivity : FlutterActivity() {
             notificationPermissionResult?.success(granted)
             notificationPermissionResult = null
         }
-        // Step counter permission result is handled by the provider polling hasPermission()
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            val granted = grantResults.isNotEmpty() &&
+                         grantResults[0] == PackageManager.PERMISSION_GRANTED
+            locationPermissionResult?.success(granted)
+            locationPermissionResult = null
+        }
+        // Step counter / location permission results are also handled by the provider polling hasPermission()
     }
 
     private fun getInstalledApps(): List<Map<String, Any>> {
@@ -355,6 +447,15 @@ class MainActivity : FlutterActivity() {
         ) ?: return false
         
         return enabledServicesSetting.contains(expectedComponentName)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == DEVICE_ADMIN_REQUEST) {
+            val active = deviceAdminBridge.isAdminActive()
+            deviceAdminResult?.success(active)
+            deviceAdminResult = null
+        }
     }
 
     override fun onDestroy() {

@@ -12,6 +12,9 @@ import 'goals_screen.dart';
 import 'sleep_screen.dart';
 import 'app_selection_screen.dart';
 import 'time_config_screen.dart';
+import 'context_rules_screen.dart';
+import 'hardmode_screen.dart';
+import '../providers/hardmode_provider.dart';
 
 String _fmtDuration(Duration d) {
   final h = d.inHours;
@@ -137,6 +140,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+// ── PIN dialog helper ──────────────────────────────────────────────────────
+
+Future<bool> _showPinDialog(BuildContext context, WidgetRef ref) async {
+  final ctrl = TextEditingController();
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Hardmode PIN Required'),
+      content: TextField(
+        controller: ctrl,
+        decoration: const InputDecoration(labelText: 'Enter PIN'),
+        keyboardType: TextInputType.number,
+        obscureText: true,
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            final ok =
+                await ref.read(hardmodeProvider.notifier).verifyPin(ctrl.text);
+            if (!ctx.mounted) return;
+            if (ok) {
+              Navigator.pop(ctx, true);
+            } else {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Incorrect PIN')),
+              );
+            }
+          },
+          child: const Text('Unlock'),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}
+
 // ── Home Tab ───────────────────────────────────────────────────────────────
 
 class _HomeTab extends ConsumerWidget {
@@ -238,6 +282,15 @@ class _HomeTab extends ConsumerWidget {
                         value: rules.isEnforcementEnabled,
                         onChanged: canModify
                             ? (value) async {
+                                // Hardmode PIN guard: require PIN when disabling
+                                if (!value) {
+                                  final hmState = ref.read(hardmodeProvider);
+                                  if (hmState.isEnabled) {
+                                    final allowed =
+                                        await _showPinDialog(context, ref);
+                                    if (!allowed) return;
+                                  }
+                                }
                                 try {
                                   if (value) {
                                     await ref
@@ -530,6 +583,34 @@ class _HomeTab extends ConsumerWidget {
                                       const TimeConfigScreen()),
                             )
                         : null,
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.wifi),
+                    title: const Text('Context Rules',
+                        style: TextStyle(fontSize: 14)),
+                    subtitle: const Text('WiFi & Location triggers',
+                        style: TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ContextRulesScreen()),
+                    ),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.lock),
+                    title: const Text('Hardmode & Contracts',
+                        style: TextStyle(fontSize: 14)),
+                    subtitle: const Text('PIN lock & commitment sessions',
+                        style: TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const HardmodeScreen()),
+                    ),
                   ),
                 ],
               ),

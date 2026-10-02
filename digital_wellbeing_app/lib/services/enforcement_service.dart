@@ -67,4 +67,23 @@ class EnforcementService {
       debugPrint('Failed to open accessibility settings: ${e.message}');
     }
   }
+
+  /// Propagate context flags to the Kotlin enforcement layer.
+  Future<void> updateContextFlags({
+    bool wifiRelaxed = false,
+    bool locationStrict = false,
+    bool contractActive = false,
+    bool hardmodeEnabled = false,
+  }) async {
+    try {
+      await _channel.invokeMethod('updateContextFlags', {
+        'wifiRelaxed': wifiRelaxed,
+        'locationStrict': locationStrict,
+        'contractActive': contractActive,
+        'hardmodeEnabled': hardmodeEnabled,
+      });
+    } on PlatformException catch (e) {
+      debugPrint('Failed to update context flags: ${e.message}');
+    }
+  }
 }

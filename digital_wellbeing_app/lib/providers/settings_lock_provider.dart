@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import '../services/time_service.dart';
 import '../providers/rules_provider.dart';
+import '../providers/hardmode_provider.dart';
 
 /// Provider that checks if settings are currently locked
 final settingsLockProvider =
@@ -112,6 +113,18 @@ class SettingsLockNotifier extends StateNotifier<SettingsLockState> {
       print(
         '[SettingsLock] Current time: ${now.hour}:${now.minute}, In restriction: $isInRestriction',
       );
+
+      // Active commitment contract also locks settings
+      final hmState = ref.read(hardmodeProvider);
+      if (hmState.contractActive) {
+        final contract = hmState.activeContract!;
+        final timeUntilUnlock = contract.endTime.difference(now);
+        state = SettingsLockState.locked(
+          unlockTime: contract.endTime,
+          timeUntilUnlock: timeUntilUnlock.isNegative ? Duration.zero : timeUntilUnlock,
+        );
+        return;
+      }
 
       if (!isInRestriction) {
         state = SettingsLockState.unlocked();
