@@ -4,6 +4,7 @@ import '../providers/rules_provider.dart';
 import '../providers/enforcement_provider.dart';
 import '../providers/settings_lock_provider.dart';
 import '../providers/tamper_detection_provider.dart';
+import '../services/enforcement_service.dart';
 import '../services/time_service.dart' as time_utils;
 import 'app_selection_screen.dart';
 import 'time_config_screen.dart';
@@ -218,8 +219,113 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             const SizedBox(height: 16),
 
-            // ONLY ONE Notification: Accessibility Service Status (when not enabled)
-            if (!accessibilityState.isEnabled && rules.isEnforcementEnabled)
+            // ── Tamper warning: accessibility service actively disabled ──
+            if (tamperState.showWarning && tamperState.isAccessibilityDisabled)
+              Card(
+                color: Colors.red.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.red.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.security, color: Colors.red.shade700),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Service Disabled',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Enforcement cannot run until the accessibility service is re-enabled.',
+                        style: TextStyle(fontSize: 13, color: Colors.red.shade800),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => ref
+                                .read(tamperDetectionProvider.notifier)
+                                .dismissWarning(),
+                            child: const Text('Dismiss'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade700,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () => EnforcementService()
+                                .openAccessibilitySettings(),
+                            icon: const Icon(Icons.settings, size: 16),
+                            label: const Text('Re-enable'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // ── Tamper warning: suspicious force-close pattern ──
+            if (tamperState.showWarning && tamperState.hasRecentForceCloses && !tamperState.isAccessibilityDisabled)
+              Card(
+                color: Colors.orange.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.orange.shade300),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.warning_amber, color: Colors.orange.shade800),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Bypass Attempt Detected',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Detected ${tamperState.forceCloseCount} force-close attempt${tamperState.forceCloseCount == 1 ? '' : 's'} in the last 5 minutes. Enforcement continues regardless.',
+                        style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => ref
+                              .read(tamperDetectionProvider.notifier)
+                              .dismissWarning(),
+                          child: const Text('Dismiss'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // ── Static info card: accessibility not enabled (no tamper event) ──
+            if (!accessibilityState.isEnabled && rules.isEnforcementEnabled && !tamperState.isAccessibilityDisabled)
               Card(
                 color: Colors.blue.shade50,
                 child: Padding(
