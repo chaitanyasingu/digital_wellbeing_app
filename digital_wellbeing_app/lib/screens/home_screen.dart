@@ -7,6 +7,7 @@ import '../providers/tamper_detection_provider.dart';
 import '../providers/usage_provider.dart';
 import '../services/enforcement_service.dart';
 import 'analytics_screen.dart';
+import 'focus_screen.dart';
 import 'goals_screen.dart';
 import 'sleep_screen.dart';
 import 'app_selection_screen.dart';
@@ -49,6 +50,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _tabs = [
     _HomeTab(),
     AnalyticsScreen(),
+    FocusScreen(),
     GoalsScreen(),
     SleepScreen(),
   ];
@@ -75,6 +77,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             label: 'Analytics',
           ),
           NavigationDestination(
+            icon: Icon(Icons.timer_outlined),
+            selectedIcon: Icon(Icons.timer),
+            label: 'Focus',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.local_fire_department_outlined),
             selectedIcon: Icon(Icons.local_fire_department),
             label: 'Goals',
@@ -92,7 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   PreferredSizeWidget _buildAppBar(
       BuildContext context, TamperDetectionState tamperState) {
     final lockState = ref.watch(settingsLockProvider);
-    final titles = ['Digital Mindfulness', 'Analytics', 'Goals', 'Sleep'];
+    final titles = ['Digital Mindfulness', 'Analytics', 'Focus', 'Goals', 'Sleep'];
     return AppBar(
       title: Row(
         mainAxisSize: MainAxisSize.min,

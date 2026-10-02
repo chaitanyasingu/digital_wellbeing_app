@@ -21,15 +21,18 @@ class MainActivity : FlutterActivity() {
     private val ENFORCEMENT_CHANNEL = "digital_wellbeing/enforcement"
     private val NOTIFICATION_CHANNEL = "digital_wellbeing/notifications"
     private val USAGE_STATS_CHANNEL = "digital_wellbeing/usage_stats"
+    private val STEPS_CHANNEL = "digital_wellbeing/steps"
     private val NOTIFICATION_PERMISSION_REQUEST = 1001
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var notificationPermissionResult: MethodChannel.Result? = null
     private lateinit var usageStatsBridge: UsageStatsBridge
+    private lateinit var stepCounterBridge: StepCounterBridge
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         usageStatsBridge = UsageStatsBridge(this)
+        stepCounterBridge = StepCounterBridge(this)
 
         // Apps channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_CHANNEL).setMethodCallHandler { call, result ->
@@ -213,6 +216,24 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        // Step Counter channel (Phase 6)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, STEPS_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isAvailable" -> result.success(stepCounterBridge.isAvailable())
+                "hasPermission" -> result.success(stepCounterBridge.hasPermission())
+                "requestPermission" -> {
+                    stepCounterBridge.requestPermission(this)
+                    result.success(null)
+                }
+                "getStepsToday" -> {
+                    stepCounterBridge.getStepsToday { steps ->
+                        mainHandler.post { result.success(steps) }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         // Notification channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -277,11 +298,12 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         
         if (requestCode == NOTIFICATION_PERMISSION_REQUEST) {
-            val granted = grantResults.isNotEmpty() && 
+            val granted = grantResults.isNotEmpty() &&
                          grantResults[0] == PackageManager.PERMISSION_GRANTED
             notificationPermissionResult?.success(granted)
             notificationPermissionResult = null
         }
+        // Step counter permission result is handled by the provider polling hasPermission()
     }
 
     private fun getInstalledApps(): List<Map<String, Any>> {

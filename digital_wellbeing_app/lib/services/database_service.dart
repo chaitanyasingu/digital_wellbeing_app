@@ -21,7 +21,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -47,6 +47,7 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_installed ON apps(is_installed)');
 
     await _createPhase5Tables(db);
+    await _createPhase6Tables(db);
   }
 
   Future<void> _createPhase5Tables(Database db) async {
@@ -86,10 +87,40 @@ class DatabaseService {
     ''');
   }
 
+  Future<void> _createPhase6Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS focus_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_time INTEGER NOT NULL,
+        end_time INTEGER,
+        work_minutes INTEGER NOT NULL DEFAULT 25,
+        break_minutes INTEGER NOT NULL DEFAULT 5,
+        completed_rounds INTEGER NOT NULL DEFAULT 0,
+        total_rounds INTEGER NOT NULL DEFAULT 4,
+        notes TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS mood_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL UNIQUE,
+        mood_score INTEGER NOT NULL,
+        note TEXT,
+        screen_time_ms INTEGER,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+  }
+
   /// Handle database schema upgrades
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _createPhase5Tables(db);
+    }
+    if (oldVersion < 3) {
+      await _createPhase6Tables(db);
     }
   }
 
@@ -386,6 +417,62 @@ class DatabaseService {
         isSystemApp: false,
       ),
     ];
+  }
+
+  // ── Focus Sessions ──────────────────────────────────────────────────────
+
+  Future<int> insertFocusSession(Map<String, dynamic> session) async {
+    final db = await database;
+    return await db.insert('focus_sessions', session);
+  }
+
+  Future<void> updateFocusSession(int id, Map<String, dynamic> values) async {
+    final db = await database;
+    await db.update('focus_sessions', values,
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Map<String, dynamic>>> getFocusSessionsForDate(
+      String dateYmd) async {
+    final db = await database;
+    final start =
+        DateTime.parse('$dateYmd 00:00:00').millisecondsSinceEpoch;
+    final end =
+        DateTime.parse('$dateYmd 23:59:59').millisecondsSinceEpoch;
+    return db.query('focus_sessions',
+        where: 'start_time BETWEEN ? AND ?',
+        whereArgs: [start, end],
+        orderBy: 'start_time DESC');
+  }
+
+  // ── Mood Entries ────────────────────────────────────────────────────────
+
+  Future<int> upsertMoodEntry(Map<String, dynamic> entry) async {
+    final db = await database;
+    return await db.insert('mood_entries', entry,
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<Map<String, dynamic>?> getMoodEntryForDate(String dateYmd) async {
+    final db = await database;
+    final rows = await db.query('mood_entries',
+        where: 'date = ?', whereArgs: [dateYmd]);
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  Future<List<Map<String, dynamic>>> getRecentMoodEntries(int days) async {
+    final db = await database;
+    final now = DateTime.now();
+    final results = <Map<String, dynamic>>[];
+    for (int i = days - 1; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final dateStr =
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      final rows = await db.query('mood_entries',
+          where: 'date = ?', whereArgs: [dateStr]);
+      if (rows.isNotEmpty) results.add(rows.first);
+    }
+    return results;
   }
 
   /// Look up display names for a list of package names

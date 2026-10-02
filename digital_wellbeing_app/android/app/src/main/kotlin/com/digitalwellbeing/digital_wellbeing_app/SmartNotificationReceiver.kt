@@ -24,10 +24,13 @@ class SmartNotificationReceiver : BroadcastReceiver() {
         const val TYPE_MORNING = "morning_intention"
         const val TYPE_EVENING = "evening_winddown"
         const val TYPE_DAILY_SUMMARY = "daily_summary"
+        const val TYPE_EYE_BREAK = "eye_break_20_20_20"
 
         private const val ID_MORNING = 2001
         private const val ID_EVENING = 2002
         private const val ID_SUMMARY = 2003
+        private const val ID_EYE_BREAK = 2004
+        private const val EYE_BREAK_INTERVAL_MS = 20 * 60 * 1000L
 
         private const val PREFS_NAME = "notification_prefs"
 
@@ -39,7 +42,29 @@ class SmartNotificationReceiver : BroadcastReceiver() {
                 putInt("${type}_minute", minute)
                 apply()
             }
-            scheduleAlarm(context, type, hour, minute)
+            if (type == TYPE_EYE_BREAK) {
+                scheduleEyeBreak(context)
+            } else {
+                scheduleAlarm(context, type, hour, minute)
+            }
+        }
+
+        private fun scheduleEyeBreak(context: Context) {
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, SmartNotificationReceiver::class.java).apply {
+                putExtra(EXTRA_TYPE, TYPE_EYE_BREAK)
+            }
+            val pi = PendingIntent.getBroadcast(
+                context, ID_EYE_BREAK, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val triggerAt = System.currentTimeMillis() + EYE_BREAK_INTERVAL_MS
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            } else {
+                am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            }
+            Log.d(TAG, "Eye break scheduled in 20 min")
         }
 
         private fun scheduleAlarm(context: Context, type: String, hour: Int, minute: Int) {
@@ -94,6 +119,10 @@ class SmartNotificationReceiver : BroadcastReceiver() {
                     scheduleAlarm(context, type, hour, minute)
                 }
             }
+            // Reschedule eye break if enabled
+            if (prefs.getBoolean("${TYPE_EYE_BREAK}_enabled", false)) {
+                scheduleEyeBreak(context)
+            }
         }
 
         private fun defaultHourFor(type: String) = when (type) {
@@ -112,6 +141,7 @@ class SmartNotificationReceiver : BroadcastReceiver() {
             TYPE_MORNING -> ID_MORNING
             TYPE_EVENING -> ID_EVENING
             TYPE_DAILY_SUMMARY -> ID_SUMMARY
+            TYPE_EYE_BREAK -> ID_EYE_BREAK
             else -> 2099
         }
     }
@@ -139,6 +169,11 @@ class SmartNotificationReceiver : BroadcastReceiver() {
                 "Tap to see how your screen time looks today.",
                 ID_SUMMARY
             )
+            TYPE_EYE_BREAK -> Triple(
+                "👀 20-20-20 Eye Break",
+                "Look at something 20 feet away for 20 seconds to rest your eyes.",
+                ID_EYE_BREAK
+            )
             else -> return
         }
 
@@ -161,8 +196,15 @@ class SmartNotificationReceiver : BroadcastReceiver() {
         nm.notify(notifId, notification)
         Log.d(TAG, "Showed notification for $type")
 
-        // Reschedule for tomorrow
-        scheduleAlarm(context, type, hour, minute)
+        // Reschedule: eye break repeats every 20 min; others daily
+        if (type == TYPE_EYE_BREAK) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (prefs.getBoolean("${TYPE_EYE_BREAK}_enabled", false)) {
+                scheduleEyeBreak(context)
+            }
+        } else {
+            scheduleAlarm(context, type, hour, minute)
+        }
     }
 
     private fun createChannel(context: Context) {
