@@ -428,11 +428,22 @@ class AppBlockingService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        Log.d(TAG, "Service interrupted")
+        Log.w(TAG, "Accessibility service interrupted/disabled")
+        val prefs = getSharedPreferences("enforcement_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean("enforcement_enabled", false)) {
+            Log.w(TAG, "Service interrupted while enforcement is enabled — prompting user to re-enable")
+            TamperWarningNotification.show(
+                this,
+                "Monitoring Service Disabled",
+                "App restrictions cannot be enforced. Tap 'Re-enable Service' to restore protection."
+            )
+        }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d(TAG, "Service connected")
+        // Dismiss any stale "service disabled" warning now that we're running again
+        TamperWarningNotification.dismiss(this)
     }
 }
