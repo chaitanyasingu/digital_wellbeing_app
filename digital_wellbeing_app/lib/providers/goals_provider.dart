@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/goals_service.dart';
+import '../services/gamification_service.dart';
+import 'gamification_provider.dart';
 
 final goalsServiceProvider = Provider((ref) => GoalsService());
 
@@ -15,7 +17,8 @@ class DailyGoalState {
 
 class DailyGoalNotifier extends StateNotifier<DailyGoalState> {
   final GoalsService _service;
-  DailyGoalNotifier(this._service) : super(const DailyGoalState()) {
+  final Ref _ref;
+  DailyGoalNotifier(this._service, this._ref) : super(const DailyGoalState()) {
     load();
   }
 
@@ -52,13 +55,20 @@ class DailyGoalNotifier extends StateNotifier<DailyGoalState> {
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     await _service.recordDayResult(
         goalId: state.goal!.id!, success: success, date: date);
+    if (success) {
+      _ref.read(gamificationProvider.notifier).awardXP(
+            GamificationService.xpDailyGoalMet,
+            50,
+            description: 'Daily goal met',
+          );
+    }
     await load();
   }
 }
 
 final dailyGoalProvider =
     StateNotifierProvider<DailyGoalNotifier, DailyGoalState>((ref) {
-  return DailyGoalNotifier(ref.read(goalsServiceProvider));
+  return DailyGoalNotifier(ref.read(goalsServiceProvider), ref);
 });
 
 // ── Sleep Schedule ─────────────────────────────────────────────────────────

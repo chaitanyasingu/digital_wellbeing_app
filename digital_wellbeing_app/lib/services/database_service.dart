@@ -21,7 +21,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -48,6 +48,7 @@ class DatabaseService {
 
     await _createPhase5Tables(db);
     await _createPhase6Tables(db);
+    await _createPhase7Tables(db);
   }
 
   Future<void> _createPhase5Tables(Database db) async {
@@ -114,6 +115,46 @@ class DatabaseService {
     ''');
   }
 
+  Future<void> _createPhase7Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS xp_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id INTEGER NOT NULL DEFAULT 1,
+        event_type TEXT NOT NULL,
+        xp_earned INTEGER NOT NULL DEFAULT 0,
+        description TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS achievements_unlocked (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        achievement_id TEXT NOT NULL,
+        profile_id INTEGER NOT NULL DEFAULT 1,
+        unlocked_at INTEGER NOT NULL,
+        xp_awarded INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(achievement_id, profile_id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS family_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        avatar_emoji TEXT NOT NULL DEFAULT '🧑',
+        is_active INTEGER NOT NULL DEFAULT 0,
+        is_child_mode INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_xp_profile ON xp_events(profile_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_ach_profile ON achievements_unlocked(profile_id)');
+  }
+
   /// Handle database schema upgrades
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
@@ -121,6 +162,9 @@ class DatabaseService {
     }
     if (oldVersion < 3) {
       await _createPhase6Tables(db);
+    }
+    if (oldVersion < 4) {
+      await _createPhase7Tables(db);
     }
   }
 
@@ -487,6 +531,94 @@ class DatabaseService {
     return Map.fromEntries(
       rows.map((r) => MapEntry(r['package_name'] as String, r['app_name'] as String)),
     );
+  }
+
+  // ── XP Events ───────────────────────────────────────────────────────────
+
+  Future<int> insertXpEvent(Map<String, dynamic> event) async {
+    final db = await database;
+    return await db.insert('xp_events', event);
+  }
+
+  Future<int> sumXpForProfile(int profileId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+        'SELECT SUM(xp_earned) as total FROM xp_events WHERE profile_id = ?',
+        [profileId]);
+    return (Sqflite.firstIntValue(result) ?? 0);
+  }
+
+  // ── Achievements ─────────────────────────────────────────────────────────
+
+  Future<int> insertAchievementUnlock(Map<String, dynamic> row) async {
+    final db = await database;
+    return await db.insert('achievements_unlocked', row,
+        conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  Future<List<String>> getUnlockedAchievementIds(int profileId) async {
+    final db = await database;
+    final rows = await db.query('achievements_unlocked',
+        columns: ['achievement_id'],
+        where: 'profile_id = ?',
+        whereArgs: [profileId]);
+    return rows.map((r) => r['achievement_id'] as String).toList();
+  }
+
+  // ── Gamification Stats ───────────────────────────────────────────────────
+
+  Future<int> countCompletedFocusSessions() async {
+    final db = await database;
+    final result = await db.rawQuery(
+        'SELECT COUNT(*) as cnt FROM focus_sessions WHERE end_time IS NOT NULL AND completed_rounds > 0');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<int> sumFocusMinutes() async {
+    final db = await database;
+    final result = await db.rawQuery(
+        'SELECT SUM(work_minutes * completed_rounds) as total FROM focus_sessions WHERE end_time IS NOT NULL');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<int> countDistinctMoodDays() async {
+    final db = await database;
+    final result = await db.rawQuery(
+        'SELECT COUNT(DISTINCT date) as cnt FROM mood_entries');
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<int> getMaxCurrentStreak() async {
+    final db = await database;
+    final rows = await db.query('streaks',
+        columns: ['current_streak'],
+        orderBy: 'current_streak DESC',
+        limit: 1);
+    if (rows.isEmpty) return 0;
+    return (rows.first['current_streak'] as int?) ?? 0;
+  }
+
+  // ── Family Profiles ──────────────────────────────────────────────────────
+
+  Future<int> insertFamilyProfile(Map<String, dynamic> profile) async {
+    final db = await database;
+    return await db.insert('family_profiles', profile);
+  }
+
+  Future<void> updateFamilyProfile(int id, Map<String, dynamic> values) async {
+    final db = await database;
+    await db.update('family_profiles', values,
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteFamilyProfile(int id) async {
+    final db = await database;
+    await db.delete('family_profiles', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllFamilyProfiles() async {
+    final db = await database;
+    return db.query('family_profiles', orderBy: 'created_at ASC');
   }
 
   /// Close database connection

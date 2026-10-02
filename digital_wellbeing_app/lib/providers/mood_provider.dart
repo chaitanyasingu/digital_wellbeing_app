@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/mood_service.dart';
+import '../services/gamification_service.dart';
+import 'gamification_provider.dart';
 
 class MoodState {
   final MoodEntry? todayMood;
@@ -27,8 +29,9 @@ class MoodState {
 
 class MoodNotifier extends StateNotifier<MoodState> {
   final MoodService _service;
+  final Ref _ref;
 
-  MoodNotifier(this._service) : super(const MoodState()) {
+  MoodNotifier(this._service, this._ref) : super(const MoodState()) {
     load();
   }
 
@@ -53,7 +56,15 @@ class MoodNotifier extends StateNotifier<MoodState> {
       note: note,
       createdAt: now,
     );
+    final isNew = state.todayMood == null;
     await _service.upsertMood(entry);
+    if (isNew) {
+      _ref.read(gamificationProvider.notifier).awardXP(
+            GamificationService.xpMoodLogged,
+            10,
+            description: 'Mood logged',
+          );
+    }
     await load();
   }
 }
@@ -61,5 +72,5 @@ class MoodNotifier extends StateNotifier<MoodState> {
 final moodServiceProvider = Provider((ref) => MoodService());
 
 final moodProvider = StateNotifierProvider<MoodNotifier, MoodState>(
-  (ref) => MoodNotifier(ref.read(moodServiceProvider)),
+  (ref) => MoodNotifier(ref.read(moodServiceProvider), ref),
 );

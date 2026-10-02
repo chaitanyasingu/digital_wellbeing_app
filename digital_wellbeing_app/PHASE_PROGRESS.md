@@ -151,17 +151,58 @@ Last updated: 2026-10-02
 
 ---
 
-## Phase 7 — Gamification & Family Mode ⏳
+## Phase 7 — Gamification & Family Mode ✅
 
-| Feature | Status | Notes |
+### 7a — XP & Levelling
+| Feature | Status | Files |
 |---------|--------|-------|
-| XP points system | ⏳ | Earned per focus session, goal met, mood logged |
-| Virtual plant / avatar | ⏳ | Grows with streak, wilts on missed days |
-| Achievement badges | ⏳ | "First session", "7-day streak", etc. |
-| Child profile mode | ⏳ | Stricter limits, parent-only settings |
-| Family leaderboard | ⏳ | Local device, shared via export |
+| XP events table (`xp_events`) | ✅ | `database_service.dart` (v4) |
+| Level formula (100·N XP per level) | ✅ | `gamification_service.dart` |
+| XP awarded on focus session complete | ✅ | `focus_provider.dart` |
+| XP awarded on mood logged (first time/day) | ✅ | `mood_provider.dart` |
+| XP awarded on daily goal met | ✅ | `goals_provider.dart` |
+| XP/level card in Goals → Progress tab | ✅ | `goals_screen.dart` |
 
-Estimated effort: 3–4 weeks
+### 7b — Virtual Plant
+| Feature | Status | Files |
+|---------|--------|-------|
+| 6-stage plant (🪴🌱🌿🌻🌺🌳) driven by streak | ✅ | `gamification_service.dart` |
+| Plant displayed in XP/level card | ✅ | `goals_screen.dart` |
+
+### 7c — Achievement Badges
+| Feature | Status | Files |
+|---------|--------|-------|
+| 12 achievements across focus/mood/streak/level | ✅ | `gamification_service.dart` |
+| `achievements_unlocked` SQLite table | ✅ | `database_service.dart` (v4) |
+| Achievement check after each XP award | ✅ | `gamification_service.dart` |
+| Badges grid tab (locked/unlocked states) | ✅ | `goals_screen.dart` (_BadgesTab) |
+
+### 7d — Family Profiles & Leaderboard
+| Feature | Status | Files |
+|---------|--------|-------|
+| `family_profiles` SQLite table | ✅ | `database_service.dart` (v4) |
+| Default profile auto-created on first run | ✅ | `family_service.dart` |
+| Add / delete / switch profiles | ✅ | `family_service.dart`, `goals_screen.dart` |
+| Child mode toggle per profile | ✅ | `family_service.dart` |
+| Leaderboard (sorted by XP) with medal emojis | ✅ | `goals_screen.dart` (_FamilyTab) |
+| Goals screen redesigned: 3-tab (Progress/Badges/Family) | ✅ | `goals_screen.dart` |
+
+### New Files (Phase 7)
+| File | Type |
+|------|------|
+| `lib/services/gamification_service.dart` | Dart service |
+| `lib/services/family_service.dart` | Dart service |
+| `lib/providers/gamification_provider.dart` | Riverpod provider |
+| `lib/providers/family_provider.dart` | Riverpod provider |
+
+### Modified Files (Phase 7)
+| File | Change |
+|------|--------|
+| `lib/services/database_service.dart` | v4 + Phase 7 tables + 10 new CRUD methods |
+| `lib/providers/focus_provider.dart` | XP hook on session complete |
+| `lib/providers/mood_provider.dart` | XP hook on mood log |
+| `lib/providers/goals_provider.dart` | XP hook on daily goal met |
+| `lib/screens/goals_screen.dart` | Full redesign: 3-tab layout |
 
 ---
 

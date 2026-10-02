@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/focus_service.dart';
+import '../services/gamification_service.dart';
+import 'gamification_provider.dart';
 
 enum FocusPhase { idle, working, breaking, paused }
 
@@ -75,9 +77,10 @@ class FocusTimerState {
 
 class FocusTimerNotifier extends StateNotifier<FocusTimerState> {
   final FocusService _service;
+  final Ref _ref;
   Timer? _timer;
 
-  FocusTimerNotifier(this._service) : super(FocusTimerState.idle()) {
+  FocusTimerNotifier(this._service, this._ref) : super(FocusTimerState.idle()) {
     _loadTodaySessions();
   }
 
@@ -173,6 +176,17 @@ class FocusTimerNotifier extends StateNotifier<FocusTimerState> {
           await _service.completeSession(id,
               completedRounds: state.totalRounds);
         }
+        final xpPerRound = state.workMinutes >= 90
+            ? 75
+            : state.workMinutes >= 50
+                ? 40
+                : 20;
+        final xpEarned = xpPerRound * state.totalRounds;
+        _ref.read(gamificationProvider.notifier).awardXP(
+              GamificationService.xpFocusSession,
+              xpEarned,
+              description: '${state.workMinutes}min × ${state.totalRounds} rounds',
+            );
         await _loadTodaySessions();
         state = FocusTimerState.idle(todaySessions: state.todaySessions);
         return;
@@ -209,5 +223,5 @@ final focusServiceProvider = Provider((ref) => FocusService());
 
 final focusTimerProvider =
     StateNotifierProvider<FocusTimerNotifier, FocusTimerState>(
-  (ref) => FocusTimerNotifier(ref.read(focusServiceProvider)),
+  (ref) => FocusTimerNotifier(ref.read(focusServiceProvider), ref),
 );
